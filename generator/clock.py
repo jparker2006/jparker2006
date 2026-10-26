@@ -1,4 +1,4 @@
-"""Jake's real sky in Los Angeles (standard library only): the sun's elevation (NOAA solar equations), the moment of
+"""Jake's real sky in California, Pacific time (standard library only; sun times are computed for Los Angeles): the sun's elevation (NOAA solar equations), the moment of
 the day the art should show, and the moon's phase.
 
 Moments (by solar elevation e, before or after solar noon):

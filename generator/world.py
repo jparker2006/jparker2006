@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compose the world for one moment of Jake's day (docs/WORLD.md).
 
-    python3 generator/world.py                       # the real moment in Los Angeles -> assets/art.svg
+    python3 generator/world.py                       # Jake's real moment (Pacific time) -> assets/art.svg
     python3 generator/world.py --moment golden --out previews/world/golden.svg
     python3 generator/world.py --all --out previews/world        # all six moments
 
@@ -380,12 +380,12 @@ def build(moment, days_, last):
     mono = 'font-family="Geist Mono" letter-spacing="1.6"'
     bg_name, bg_line, bg_cap = mix(tint[0], tint[1], .25), mix(tint[0], tint[1], .34), mix(tint[2], tint[3], .1)
     words = (f'<text x="64" y="76" font-family="Geist" font-size="34" letter-spacing="-.4" fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
-             f'<text x="65" y="102" {mono} font-size="16.5" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · LOS ANGELES</text>')
+             f'<text x="65" y="102" {mono} font-size="16.5" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · CALIFORNIA</text>')
     for (yr, tot), (x, y) in zip(years, summits):
         words += f'<text x="{x:.1f}" y="{HZ + 19}" text-anchor="middle" {mono} font-size="16.5" fill="{ink_on(bg_cap, text_ink)}" data-bg="{hexc(bg_cap)}">{yr}</text>'
     words += ''.join(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Geist Mono" font-size="3.2" fill="{text_ink}" fill-opacity=".7" '
                      f'data-micro="1" aria-hidden="true">{c}</text>' for x, y, c in micro)
-    title = f'Jake Parker: a lake engraved from GitHub contributions at {clock.LABEL[moment].lower()} in Los Angeles. Mountains are years, aircraft are months, the shore is days.'
+    title = f'Jake Parker: a lake engraved from GitHub contributions, at {clock.LABEL[moment].lower()} in California. Mountains are years, aircraft are months, reeds are days.'
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {VW} {VH}" width="{VW}" height="{VH}" role="img"><title>{title}</title>'
            f'<style>{kit.fonts()}</style><style>{MOTION_CSS}</style><defs>{defs}</defs>'
            f'<g clip-path="url(#{P}card)">{"".join(out)}{stars}{"".join(out_cast)}{days_svg}{"".join(fleet_svg)}{cloud_svg}</g>{words}</svg>')

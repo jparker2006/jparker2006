@@ -1,0 +1,67 @@
+name: World
+
+# Redraws the lake for Jake's current moment (dawn, morning, midday, golden hour, dusk, night in California) from the
+# latest public contributions. The picture goes to the `output` branch as a single commit that is replaced each time
+# (no history to bloat the repo); README.md links to it. Data and README numbers are saved to main once a day.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['generator/**', 'fonts/**', 'tools/check.py', 'README.template.md', '.github/workflows/world.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: world
+  cancel-in-progress: false
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch contributions
+        run: python3 generator/fetch.py jparker2006 data/contributions.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Draw the current moment
+        run: python3 generator/world.py --out out/art.svg
+
+      - name: Check it is honest and readable
+        run: python3 tools/check.py out/art.svg
+
+      - name: Save data and README numbers (once a day, or when the code changes)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 generator/readme.py
+          git add data/contributions.json README.md
+          if git diff --cached --quiet; then
+            echo "Nothing new to save"
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "$(git log -1 --format=%cs -- data/contributions.json)" = "$(date -u +%F)" ]; then
+            echo "Already saved today"
+          else
+            git commit -q -m "Daily data and README numbers" && git push -q
+          fi
+
+      - name: Publish the picture
+        run: |
+          if git fetch -q origin output 2>/dev/null && git show origin/output:art.svg > /tmp/live.svg 2>/dev/null && cmp -s /tmp/live.svg out/art.svg; then
+            echo "Picture unchanged"
+            exit 0
+          fi
+          cd out
+          git init -q -b output
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add art.svg art.json
+          git commit -q -m "Draw $(python3 -c 'import json; m = json.load(open("art.json")); print(m["moment"], m["last"])')"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" output
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
