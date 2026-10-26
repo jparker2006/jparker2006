@@ -4,7 +4,7 @@
   python3 tools/check.py assets      (DIR holds art.svg and meta.json)
 
 Hard gates (exit 1 if any fail):
-  data      every ridge day in meta.json matches data/contributions.json, and every crest height is
+  data      every ridge point (day or week) in meta.json matches data/contributions.json, and every crest is
             baseline - amp * value / vmax with one shared amp and vmax (honest, linear, same scale)
   numbers   every number printed in a label is a real number from the data (no invented stats)
   text      every label is >= 11 px when the image is shown 830 px wide (GitHub README width)
@@ -40,17 +40,27 @@ def ratio(a, b):
 # data
 amp, vmax = meta['amp'], meta['vmax']
 bad = 0
+import datetime
+def week_sum(a, b):
+    d0, d1 = datetime.date.fromisoformat(a), datetime.date.fromisoformat(b)
+    return sum(days.get((d0 + datetime.timedelta(days=i)).isoformat(), 0) for i in range((d1 - d0).days + 1))
+values = []
 for r in meta['ridges']:
-    for date, v, top in r['days']:
+    for item in r.get('days', []):                      # one point per day: [date, value, crest]
+        date, v, top = item; values.append(v)
         if days.get(date, 0) != v: bad += 1; continue
         if abs(top - (r['baseline'] - amp * v / vmax)) > .01: bad += 1
-window_max = max(v for r in meta['ridges'] for _, v, _ in r['days'])
+    for item in r.get('weeks', []):                     # one point per week: [first, last, value, crest]
+        a, b, v, top = item; values.append(v)
+        if week_sum(a, b) != v: bad += 1; continue
+        if abs(top - (r['baseline'] - amp * v / vmax)) > .01: bad += 1
+window_max = max(values)
 if window_max != vmax: fails.append(f'data: vmax {vmax} != real max {window_max}')
-if bad: fails.append(f'data: {bad} ridge days do not match the data or the shared linear scale')
+if bad: fails.append(f'data: {bad} ridge points do not match the data or the shared linear scale')
 
 # numbers
 allowed = {str(n) for n in range(0, 32)} | {'2021', '2022', '2023', '2024', '2025', '2026', "'25", "'26"}
-allowed |= {str(v) for v in days.values()} | {str(meta['total']), str(vmax)}
+allowed |= {str(v) for v in days.values()} | {str(v) for v in values} | {str(meta['total']), str(vmax)}
 texts = [t for t in root.iter(NS + 'text')]
 for t in texts:
     s = ''.join(t.itertext())
