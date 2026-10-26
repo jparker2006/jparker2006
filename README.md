@@ -18,8 +18,8 @@
 
 The picture is drawn from my public GitHub contributions and keeps my clock in California, so it is morning, golden hour or night when it is for me.
 
-- **Mountains are years**, one for every year since 2021. A summit's height is that year's contributions; 2026 so far: **5,857**.
-- **Aircraft are the last 12 months.** Busier months fly bigger aircraft, and each size up means twice the work. Quiet months stay in their hangars. Oct 2026 so far: **2,621**, a cargo airship.
+- **Mountains are years**, one for every year since 2021. A summit's height is that year's contributions; 2026 so far: **5,879**.
+- **Aircraft are the last 12 months.** Busier months fly bigger aircraft, and each size up means twice the work. Quiet months stay in their hangars. Oct 2026 so far: **2,643**, a cargo airship.
 - **Reeds are days**, one for each of the last 365. The tallest is **353** on Oct 17, 2026.
 - The cloud, the ducks, the turtle and the koi are just there for fun. Zoom in on the waterline for the fine print.
 
