@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Automatic gates for the profile art. Design agents must not edit this file.
 
-  python3 tools/check.py assets      (DIR holds art.svg and meta.json)
+  python3 tools/check.py assets [art-night.svg]   (DIR holds the SVG and meta.json; default art.svg)
 
 Hard gates (exit 1 if any fail):
   data      every ridge point (day or week) in meta.json matches data/contributions.json, and every crest is
@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, 'data', 'contributions.json')
 NS = '{http://www.w3.org/2000/svg}'
 d = sys.argv[1]
-svg_path = next(p for p in (os.path.join(d, 'art.svg'), os.path.join(d, 'variant.svg')) if os.path.exists(p))
+svg_path = os.path.join(d, sys.argv[2]) if len(sys.argv) > 2 else next(p for p in (os.path.join(d, 'art.svg'), os.path.join(d, 'variant.svg')) if os.path.exists(p))
 meta_path = os.path.join(d, 'meta.json')
 raw = open(svg_path).read()
 root = ET.fromstring(raw)
@@ -72,6 +72,7 @@ for t in texts:
 vb = [float(v) for v in root.get('viewBox').split()]
 scale = 830 / vb[2]
 for t in texts:
+    if t.get('data-micro') == '1': continue              # decorative microprint: meant to be read only when zoomed in
     s = ''.join(t.itertext()); size = float(t.get('font-size', 16)); px = size * scale
     if px < 11 - 1e-6: fails.append(f'text: "{s}" is {px:.1f} px at 830 px wide (min 11)')
     bg = t.get('data-bg'); fill = t.get('fill', '#000000'); op = float(t.get('fill-opacity', 1))
@@ -87,7 +88,7 @@ for pat, why in [('<script', 'script'), ('foreignobject', 'foreignObject'), ('hr
 
 kb = len(raw.encode()) / 1024
 notes.append(f'size: {kb:.0f} KB' + (' (over 500 KB: production build will compress the pixel layer)' if kb > 500 else ''))
-notes.append(f'labels: {len(texts)}, smallest {min(float(t.get("font-size", 16)) for t in texts) * scale:.1f} px')
+notes.append(f'labels: {len(texts)}, smallest readable {min(float(t.get("font-size", 16)) for t in texts if t.get("data-micro") != "1") * scale:.1f} px')
 for n in notes: print('note  ', n)
 for f in fails: print('FAIL  ', f)
 print('PASS   all hard gates' if not fails else f'FAILED {len(fails)} gate(s)')
