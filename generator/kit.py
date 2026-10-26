@@ -122,8 +122,28 @@ def png(rows):
 
 def raster(fn, x0, y0, x1, y1, aa=True):
     """Rasterise fn(x, y) -> colour | None over a box (art units) into a transparent PNG, 2x2 supersampled at the
-    edges. Returns (svg <image> markup, png bytes)."""
+    edges. aa=True samples every pixel 5 times (safe for hairline detail); aa='edges' samples pixel centres first
+    and supersamples only where coverage changes (about 3x faster for solid masses such as land).
+    Returns (svg <image> markup, png bytes)."""
     w, h = max(1, round((x1 - x0) * S)), max(1, round((y1 - y0) * S)); rows = []
+    if aa == 'edges':
+        grid = [[fn(x0 + (px + .5) / S, y0 + (py + .5) / S) for px in range(w)] for py in range(h)]
+        for py in range(h):
+            row = []
+            for px in range(w):
+                c = grid[py][px]
+                nb = [grid[py + dy][px + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if 0 <= px + dx < w and 0 <= py + dy < h]
+                if c is not None and all(v is not None for v in nb): row.append(tuple(int(v + .5) for v in c) + (255,)); continue
+                if c is None and all(v is None for v in nb): row.append((0, 0, 0, 0)); continue
+                hits = [fn(x0 + (px + .25 + .5 * i) / S, y0 + (py + .25 + .5 * j) / S) for i in (0, 1) for j in (0, 1)]
+                n = sum(1 for v in hits if v)
+                if not n: row.append((0, 0, 0, 0)); continue
+                c = c or next(v for v in hits if v)
+                row.append(tuple(int(v + .5) for v in c) + (round(n / 4 * 255),))
+            rows.append(row)
+        data = png(rows)
+        return (f'<image x="{x0:.2f}" y="{y0:.2f}" width="{x1 - x0:.2f}" height="{y1 - y0:.2f}" '
+                f'href="data:image/png;base64,{base64.b64encode(data).decode()}"/>', data)
     for py in range(h):
         row = []
         for px in range(w):

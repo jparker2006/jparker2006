@@ -24,18 +24,27 @@ TINT = {   # sky top, sky at the horizon, water far, water near, sun glow
     'morning': ((176, 206, 240), (234, 240, 247), (224, 235, 246), (198, 218, 240), (252, 240, 214)),
     'midday':  ((172, 208, 242), (222, 237, 249), (219, 235, 247), (194, 220, 243), (250, 240, 214)),
     'golden':  ((160, 190, 230), (252, 214, 170), (248, 224, 192), (204, 204, 222), (252, 214, 150)),
-    'dusk':    ((84, 96, 160), (232, 176, 182), (196, 166, 192), (84, 92, 148), (238, 166, 136)),
+    'dusk':    ((48, 58, 116), (232, 176, 182), (196, 166, 192), (84, 92, 148), (238, 166, 136)),
     'night':   ((9, 19, 44), (26, 44, 86), (22, 38, 76), (9, 19, 43), (70, 92, 140)),
 }
 TEXT_INK = dict(dawn='#18488a', morning='#18488a', midday='#18488a', golden='#18488a', dusk='#f4ecf2', night='#e6edf8')
 
 def hexc(c): return '#%02x%02x%02x' % tuple(int(round(v)) for v in c)
+def _lum(c):
+    f = lambda v: v / 12.92 if v <= .03928 else ((v + .055) / 1.055) ** 2.4
+    return .2126 * f(c[0] / 255) + .7152 * f(c[1] / 255) + .0722 * f(c[2] / 255)
+def _ratio(a, b): la, lb = sorted((_lum(a), _lum(b)), reverse=True); return (la + .05) / (lb + .05)
+def _rgb(h): return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+def ink_on(bg, preferred):
+    """The moment's text ink if it reads on bg (>= 4.5:1), else whichever of deep navy or pale ink reads better."""
+    if _ratio(_rgb(preferred), bg) >= 4.6: return preferred
+    return max(('#132a52', '#f4ecf2'), key=lambda c: _ratio(_rgb(c), bg))
 
 def sun_spec(moment, summits):
     """Where the light source sits for each hand-composed moment."""
     nx = summits[-1][0] if summits else 900
-    return {'dawn': ('sun', 150, HZ - 8, 66), 'morning': ('sun', 236, 122, 50), 'midday': ('sun', 612, 60, 44),
-            'golden': ('sun', nx, HZ - 40, 90), 'dusk': ('glow', nx, HZ + 30, 90), 'night': ('moon', 880, 92, 36)}[moment]
+    return {'dawn': ('sun', 150, HZ - 8, 66), 'morning': ('sun', 380, 178, 46), 'midday': ('sun', 612, 60, 44),
+            'golden': ('sun', nx, HZ - 40, 90), 'dusk': ('glow', nx, HZ + 30, 90), 'night': ('moon', None, None, 34)}[moment]
 
 # ------------------------------------------------------------------ the cast (always there, never data)
 DUCKS = [(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)]     # a mother leads three
@@ -113,34 +122,69 @@ def overlaps(a, b, m=0):
 
 def slot_x(i): return SLOT_X0 + (i + .5) * (SLOT_X1 - SLOT_X0) / 12
 
-def place_fleet(months, keepouts):
-    """x follows the month, y the craft's natural altitude; big craft are placed first, small ones dodge."""
-    placed = {}
+def area(a, b, m=0):
+    """Overlap area of two boxes, the first grown by margin m."""
+    w = min(a[2] + m, b[2]) - max(a[0] - m, b[0]); h = min(a[3] + m, b[3]) - max(a[1] - m, b[1])
+    return w * h if w > 0 and h > 0 else 0
+
+def craft_box(kind, x, y):
+    """The craft's footprint including its moving parts (rotors can poke out of SIZE)."""
+    w, h = fleet.SIZE[kind]; b = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+    for p in fleet.parts(kind):
+        u0, v0, u1, v1 = p['box']
+        b = [min(b[0], x + u0), min(b[1], y + v0), max(b[2], x + u1), max(b[3], y + v1)]
+    return tuple(b)
+
+def place_fleet(months, keepouts, crest):
+    """x follows the month (each craft stays inside its own month's slot, so the order always reads left to right),
+    y the craft's natural altitude. Big craft are placed first; small ones dodge. Hard rules: never cover the title,
+    the sun or moon, a summit, or another craft. Soft rule: stay clear of the land."""
+    placed, slot = {}, (SLOT_X1 - SLOT_X0) / 12
     for i in sorted(range(len(months)), key=lambda i: (-months[i][2], i)):
         kind = months[i][3]
         if not kind: continue
-        w, h = fleet.SIZE[kind]; x0 = min(max(slot_x(i), 18 + w / 2), VW - 18 - w / 2); y0 = fleet.ALTITUDE[kind]
-        best = None
-        for dy in (0, -14, 14, -28, 28, -42, 42, -58, 58, -76, 76):
-            for dx in (0, -16, 16, -32, 32, -48, 48):
-                x, y = min(max(x0 + dx, 18 + w / 2), VW - 18 - w / 2), y0 + dy
-                b = (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
-                if b[1] < 14 or b[3] > HZ - 6: continue
-                if any(overlaps(b, o, 8) for o in keepouts) or any(overlaps(b, p[2], 10) for p in placed.values()): continue
-                best = (x, y, b); break
-            if best: break
-        placed[i] = best or (x0, y0, (x0 - w / 2, y0 - h / 2, x0 + w / 2, y0 + h / 2))
+        w, h = fleet.SIZE[kind]; y0 = fleet.ALTITUDE[kind]
+        cands, near = [], []
+        for dy in range(-132, 133, 12):
+            for dx in range(-150, 151, 10):
+                x = min(max(slot_x(i) + dx, 18 + w / 2), VW - 18 - w / 2); y = y0 + dy
+                # the months must still read in order: every craft stays between its neighbours' centres
+                if any((j < i and px >= x - 6) or (j > i and px <= x + 6) for j, (px, py, pb) in placed.items()): continue
+                b = craft_box(kind, x, y)
+                if b[1] < 14 or b[3] > HZ - 8: continue
+                cost = abs(dy) / 12 + abs(dx) / 10
+                clash = sum(area(b, o, 8) for o in keepouts) + sum(area(b, p[2], 10) for p in placed.values())
+                if clash: near.append((clash, cost, x, y, b)); continue
+                land = sum(1 for k in range(13) if b[3] > crest(b[0] + (b[2] - b[0]) * k / 12) - 8)
+                cands.append((cost + 40 * land, x, y, b))
+        if cands: _, x, y, b = min(cands)
+        elif near: _, _, x, y, b = min(near)                              # no clear spot: overlap as little as possible
+        else: x = min(max(slot_x(i), 18 + w / 2), VW - 18 - w / 2); y = y0; b = craft_box(kind, x, y)
+        placed[i] = (x, y, b)
     return placed
 
-def place_cloud(boxes, title_box):
-    """The cloud floats in the emptiest stretch of sky (it never covers a month)."""
-    s = CLOUD_SCALE; best, score = (330, 152), -float('inf')
-    for cx in range(240, 960, 16):
-        for cy in range(118, 214, 8):
-            b = (cx - 120 * s, cy - 116 * s, cx + 122 * s, cy + 2 * s)
-            if overlaps(b, title_box, 10): continue
-            gap = min([max(o[0] - b[2], b[0] - o[2], o[1] - b[3], b[1] - o[3]) for o in boxes] + [400])
+def place_moon(boxes, r):
+    """At night the moon rises wherever the sky is emptiest."""
+    best, score = (880, 92), -float('inf')
+    for cx in range(180, 1120, 20):
+        for cy in range(60, 190, 10):
+            b = (cx - r - 50, cy - r - 50, cx + r + 50, cy + r + 50)
+            gap = min([max(o[0] - b[2], b[0] - o[2], o[1] - b[3], b[1] - o[3]) for o in boxes] + [300])
+            gap -= abs(cy - 100) * .4                                     # prefer a moon high in the sky
             if gap > score: best, score = (cx, cy), gap
+    return best
+
+def place_cloud(boxes, title_box, crest):
+    """The cloud floats in the emptiest stretch of sky: never over a month, the sun or moon, a summit or the title.
+    Among clear spots it prefers the upper-left third (it balances the busy right where the newest months fly)."""
+    s = CLOUD_SCALE; best, score = (330, 152), -float('inf')
+    for cx in range(150, 1060, 12):
+        for cy in range(110, 250, 6):
+            b = (cx - 120 * s, cy - 116 * s, cx + 122 * s, cy + 2 * s)
+            if overlaps(b, title_box, 12) or b[3] > min(crest(b[0]), crest(b[2]), crest(cx)) - 20: continue
+            gap = min([max(o[0] - b[2], b[0] - o[2], o[1] - b[3], b[1] - o[3]) for o in boxes] + [120])
+            sc = min(gap, 60) - abs(cx - 420) * .03 - abs(cy - 150) * .05
+            if sc > score: best, score = (cx, cy), sc
     return best
 
 # ------------------------------------------------------------------ the sky and water engraving (ink with alpha)
@@ -161,12 +205,7 @@ def alpha_layer(fn, x0, y0, x1, y1):
 def make_sky_water(moment, light, sun, years):
     kind, sx, sy, sr = sun
     night = light['night']
-    crest = [mountains.crest((px + .5) / S, years) for px in range(VW * S.__int__() + 2)] if False else None
-    cache = {}
-    def crest_at(x):
-        k = int(x * 2)
-        if k not in cache: cache[k] = mountains.crest(k / 2, years)
-        return cache[k]
+    reflect = getattr(mountains, 'reflect', None)
     gold, hair, ink = light['gold'], light['hair'], light['ink']
     def fn(x, y):
         ds = math.hypot(x - sx, y - sy)
@@ -204,9 +243,15 @@ def make_sky_water(moment, light, sun, years):
         t = (.06 + .05 * f) if night else (.06 + .17 * f ** 1.2) * (1 - .55 * math.exp(-gx / (gw * 2.2)))
         col = ink if not night else hair
         n = 80 * f ** .72; L = int(math.floor(n + .5))
-        ym = HZ - (y - HZ) / .5
-        if crest_at(x) <= ym < HZ and ((int(y * 1.3) * 2654435761 + int(x / 13 + 3 * math.sin(y * .7)) * 40503) >> 7) % 7 > 1:
-            t += .3 * (1 - f * .6)
+        broken = ((int(y * 1.3) * 2654435761 + int(x / 13 + 3 * math.sin(y * .7)) * 40503) >> 7) % 7 > 1
+        r = reflect(x, y, years, light) if (reflect and y < HZ + 170) else None   # the land, mirrored in still water
+        if r:
+            tone, rk = r
+            if rk == 'foam': t = 0
+            elif broken:
+                if rk == 'rim': col, t = gold, max(t, .45)
+                elif night: t = clamp(t + (.5 - tone) * .3)
+                else: t += tone * .5 * (1 - f * .6)
         if kind in ('sun', 'glow', 'moon') and gx < gw and ((L * 2654435761 + int((x + L * 5) / 9) * 40503) >> 6) % 5 > 1:
             t, col = .5 * (1 - gx / gw) + .14, (gold if kind != 'moon' else (226, 222, 200))
         elif ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
@@ -242,6 +287,22 @@ def build(moment, days_, last):
     light = dict(kit.LIGHTS[moment]); night = light['night']
     years = data.years(days_, last); months = data.fleet(days_, last); recent = data.recent_days(days_, last)
     summits = mountains.summits(years); sun = sun_spec(moment, summits)
+    crest_cache = {}
+    def crest(x):
+        k = int(x)
+        if k not in crest_cache: crest_cache[k] = mountains.crest(k, years)
+        return crest_cache[k]
+    title_box = (50, 40, 380, 108)
+    keepouts = [title_box]
+    for (sx_, sy_), (yr_, tot_) in zip(summits, years):
+        hgt = HZ - sy_
+        if hgt > 6: keepouts.append((sx_ - 26 - hgt * .12, sy_ - 22, sx_ + 26 + hgt * .12, sy_ + hgt * .34))   # the summit stays visible
+    if sun[1] is not None:
+        k_, sx_, sy_, sr_ = sun; pad = 14 if k_ == 'sun' else 0
+        if k_ != 'glow': keepouts.append((sx_ - sr_ - pad, sy_ - sr_ - pad, sx_ + sr_ + pad, sy_ + sr_ + pad))
+    placed = place_fleet(months, keepouts, crest)
+    if sun[0] == 'moon':
+        mx_, my_ = place_moon([p[2] for p in placed.values()] + keepouts, sun[3]); sun = ('moon', mx_, my_, sun[3])
     tint = TINT[moment]; text_ink = TEXT_INK[moment]
     set_friend_colours(light)
     out, sizes = [], {}
@@ -259,7 +320,7 @@ def build(moment, days_, last):
     img, b = make_sky_water(moment, light, sun, years); out.append(img); sizes['sky+water'] = len(b)
     # 3. mountains
     top = min(y for _, y in summits) - 6
-    img, b = kit.raster(lambda x, y: mountains.shade(x, y, years, light), 0, max(0, top), VW, HZ + 1); out.append(img); sizes['mountains'] = len(b)
+    img, b = kit.raster(lambda x, y: mountains.shade(x, y, years, light), 0, max(0, top), VW, HZ + 4, aa='edges'); out.append(img); sizes['mountains'] = len(b)
     # 4. days, in slices that sway
     B = daysmod.BAND; n = daysmod.SLICES; dt = B['top'] - 8; sl = []
     for k in range(n):
@@ -279,9 +340,6 @@ def build(moment, days_, last):
         f'stroke-width=".9" style="animation-delay:{dl}s"/>' for a, bb, dl in ((12, 2.6, 0), (20, 4.2, .25))))
     defs += f'<clipPath id="{P}koi"><rect x="{kx - 40 * ks:.1f}" y="{ky - 60 * ks:.1f}" width="{70 * ks:.1f}" height="{60 * ks + 1.5:.1f}"/></clipPath>'
     # 6. fleet (months), placed around the title, the summits and each other
-    title_box = (50, 40, 380, 108)
-    keepouts = [title_box] + [(x - 22, y - 26, x + 22, y + 4) for x, y in summits if HZ - y > 8]
-    placed = place_fleet(months, keepouts)
     fleet_svg, micro = [], []
     for i, (m, v, t, k) in enumerate(months):
         cap = f'{data.MON[m.month]} {m.year} · {v:,}'
@@ -301,8 +359,9 @@ def build(moment, days_, last):
         fleet_svg.append(f'<g class="{mot or ""}" style="{delay}">{img}{"".join(parts)}</g>')
         micro.append((x, bx[3] + 4.5, cap))
     # 7. the cloud, in the emptiest sky
-    boxes = [p[2] for p in placed.values() if p] + [(sx - sr, sy - sr, sx + sr, sy + sr)]
-    cx, cy = place_cloud(boxes, title_box); s = CLOUD_SCALE
+    halo = sr + (46 if kind in ('sun', 'moon') else 0)
+    boxes = [p[2] for p in placed.values() if p] + [(sx - halo, sy - halo, sx + halo, sy + halo)] + keepouts[1:]
+    cx, cy = place_cloud(boxes, title_box, crest); s = CLOUD_SCALE
     img, b = kit.raster(lambda x, y: cloud_at((x - cx) / s, (y - cy) / s, light), cx - 122 * s, cy - 118 * s, cx + 124 * s, cy + 3 * s); sizes['cloud'] = len(b)
     cloud_svg = f'<g class="cloud">{img}</g>'
     if night:
@@ -319,10 +378,11 @@ def build(moment, days_, last):
             if stars.count('<path') >= 34: break
     # 9. text
     mono = 'font-family="Geist Mono" letter-spacing="1.6"'
-    words = (f'<text x="64" y="76" font-family="Geist" font-size="34" letter-spacing="-.4" fill="{text_ink}" data-bg="{hexc(tint[0])}">Jake Parker</text>'
-             f'<text x="65" y="102" {mono} font-size="16.5" fill="{text_ink}" data-bg="{hexc(mix(tint[0], tint[1], .3))}">{clock.LABEL[moment]} · LOS ANGELES</text>')
+    bg_name, bg_line, bg_cap = mix(tint[0], tint[1], .25), mix(tint[0], tint[1], .34), mix(tint[2], tint[3], .1)
+    words = (f'<text x="64" y="76" font-family="Geist" font-size="34" letter-spacing="-.4" fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
+             f'<text x="65" y="102" {mono} font-size="16.5" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · LOS ANGELES</text>')
     for (yr, tot), (x, y) in zip(years, summits):
-        words += f'<text x="{x:.1f}" y="{HZ + 19}" text-anchor="middle" {mono} font-size="16.5" fill="{text_ink}" data-bg="{hexc(tint[2])}">{yr}</text>'
+        words += f'<text x="{x:.1f}" y="{HZ + 19}" text-anchor="middle" {mono} font-size="16.5" fill="{ink_on(bg_cap, text_ink)}" data-bg="{hexc(bg_cap)}">{yr}</text>'
     words += ''.join(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Geist Mono" font-size="3.2" fill="{text_ink}" fill-opacity=".7" '
                      f'data-micro="1" aria-hidden="true">{c}</text>' for x, y, c in micro)
     title = f'Jake Parker: a lake engraved from GitHub contributions at {clock.LABEL[moment].lower()} in Los Angeles. Mountains are years, aircraft are months, the shore is days.'
