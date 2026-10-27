@@ -13,7 +13,7 @@ Everything below was decided with Jake in a grill on 2026-10-26. Changing any of
 |---|---|---|
 | Years | **Mountains** on the far shore | One mountain per calendar year since the first contribution, oldest on the left. They never move. This year's grows a little every day. Summit height follows the square root of the year's total on one shared scale (Jake, 2026-10-26: small years must read as hills), and every year is labeled with its exact total. |
 | Months | **A fleet of aircraft** in the sky | Rolling last 12 months, oldest on the left, the current month on the right. Each month flies one aircraft; bigger means busier. |
-| Days | **Wildflowers** along the near shore | Rolling last 365 days, one per day, each under its own month's aircraft. Height follows the square root of the day's count (the tallest is labeled with its exact count); busier days bloom. Flower colours are decoration only. |
+| Days | **Wildflowers** along the near shore | Rolling last 365 days, one per day, each under its own month's aircraft. Height follows the square root of the day's count (the tallest is labeled with its exact count); busier days bloom. A hand-coloured engraved meadow (daisies, round flowers, tulips, buds); only the busiest 10% of days get the cloud's smiling face, and they sleep at night. Flower colours are decoration only. |
 
 **The fleet**, from quietest to busiest month: paper plane, drone, helicopter, prop plane, private jet, hot air balloon,
 jet airliner, blimp, cargo airship. Each step up means **double the work**, measured against the record month (the
@@ -41,7 +41,10 @@ For example, golden hour lands at the real sunset (6:06 pm on 2026-10-26, 4:43 p
   and 30s** for the aircraft. Reference images are for technique only: never trace or copy them.
 - **Light is bare paper.** Tone comes from line width. Concentrate detail where the eye should go; leave air elsewhere.
 - **A tint plate** sits under the sky and the water, like a banknote's offset tint under the intaglio lines or a Hiroshige
-  bokashi sky. It is baby blue at midday and changes with the moment. Land, cloud, creatures and aircraft stay paper plus ink.
+  bokashi sky. It is baby blue at midday and changes with the moment. Land and cloud stay paper plus ink.
+- **Colour accents** come from one shared palette, `kit.PIGMENTS` via `kit.pigment(name, light)`, which quiets them at
+  night: the aircraft wear golden-age liveries printed under their engraving (1950s airline posters), the flowers are
+  hand-coloured, and the turtle is green. Colour is decoration only; every meaning is carried by shape, size and labels.
 - Night is a **white-line engraving**: pale lines on navy. `kit.engrave()` flips automatically, so draw with *tone*
   (0 = lit, 1 = shade), never with hard-coded colours.
 - **Accessible to colourblind viewers:** meaning never by colour alone. Blue and gold is the safe pair; shapes must read in grey.

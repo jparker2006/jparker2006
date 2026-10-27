@@ -1,13 +1,13 @@
 """Flowers C (engraved superflat): strips, zooms and the full world, on one contact sheet.
 
-    python3 tools/gallery_flowers-c.py quick     # strips and zooms only (uses the cached day -> x map)
-    python3 tools/gallery_flowers-c.py           # renders the world too, then the full sheet
+    python3 tools/gallery_flowers.py quick     # strips and zooms only (uses the cached day -> x map)
+    python3 tools/gallery_flowers.py           # renders the world too, then the full sheet
 """
 import datetime, json, os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'generator'))
 import data, days, kit, world
 
-OUT = os.path.join(kit.ROOT, 'previews', 'pieces', 'flowers-c')
+OUT = os.path.join(kit.ROOT, 'previews', 'pieces', 'flowers')
 WORLD = os.path.join(OUT, 'world')
 os.makedirs(WORLD, exist_ok=True)
 counts, last = data.load()

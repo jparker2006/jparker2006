@@ -81,24 +81,58 @@ def main():
         for m in sys.argv[2:] or ['midday']:
             shoot_svg(lineup_svg(m), os.path.join(OUT, f'lineup-{m}.png'), README * 2, scale=1); print('lineup', m)
     elif cmd == 'zoom':
-        kinds = sys.argv[2:] or ('helicopter', 'airliner', 'airship')
-        shoot_svg(zoom_svg('midday', kinds), os.path.join(OUT, 'zoom.png'), README * 2, scale=2); print('zoom')
+        args = sys.argv[2:]; m = args.pop(0) if args and args[0] in kit.LIGHTS else 'midday'
+        kinds = args or ('balloon', 'airliner', 'airship')
+        shoot_svg(zoom_svg(m, kinds), os.path.join(OUT, f'zoom-{m}.png'), README * 2, scale=2); print('zoom', m)
+    elif cmd == 'big':                                    # big [moment] [ppu] kinds...: a close look for the artist
+        args = sys.argv[2:]; m = args.pop(0) if args and args[0] in kit.LIGHTS else 'midday'
+        if args and args[0] == 'parked':                  # the hangar for a quiet month
+            w, h = fleet.PARKED; light = dict(kit.LIGHTS[m])
+            img, _ = kit.raster(lambda x, y: fleet.parked(x - 15, y - 9, light), 2, 2, 28, 16)
+            svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 18" width="30" height="18">{backdrop(m, 30, 18)}{img}</svg>'
+            shoot_svg(svg, os.path.join(OUT, f'big-{m}.png'), 20, scale=1); print('big parked', m); return
+        ppu = float(args.pop(0)) if args and args[0].replace('.', '').isdigit() else 6
+        shoot_svg(zoom_svg(m, args or ('balloon',)), os.path.join(OUT, f'big-{m}.png'), ppu, scale=1); print('big', m)
+    elif cmd == 'world':                                  # world [scale] moments...: the rendered world at README width
+        args = sys.argv[2:]; sc = float(args.pop(0)) if args and args[0].replace('.', '').isdigit() else 1
+        for m in args or ['midday']:
+            svg = os.path.join(OUT, 'world', f'{m}.svg')
+            page = f'<html><body style="margin:0;background:#fff"><img style="display:block;width:830px" src="file://{svg}"></body></html>'
+            kit.shoot(page, 830, 346 + 90, os.path.join(OUT, f'world-{m}@{sc:g}x.png'), scale=sc); print('world', m, sc)
     elif cmd == 'mass':
         prev = 0
         for k, a in mass().items(): print(f'{k:12} {a:7.0f} sq units', '' if a > prev else '  <-- NOT BIGGER'); prev = a
     elif cmd == 'sheet':
-        subprocess.run([sys.executable, os.path.join(ROOT, 'generator', 'world.py'), '--all', '--out', os.path.join(OUT, 'world')], check=True)
-        width_units = 1240 / README
-        items = [('1 · Lineup, midday', 'all nine at true relative size, 2x README scale; captions give the length in units', lineup_svg('midday')),
-                 ('1b · Lineup at real README size', '830 px wide canvas: 1 unit = 0.69 px', lineup_svg('midday', scale_w=width_units, captions=False)),
-                 ('2 · Lineup, night', 'the white-line flip; gold = cabin lights, nav lights, burner', lineup_svg('night')),
-                 ('2b · Lineup, golden hour', 'warm rims on the sun side, gold window glints', lineup_svg('golden')),
-                 ('3 · 2x zoom: helicopter, jet airliner, cargo airship', 'midday, README scale x2', zoom_svg('midday')),
-                 ('3b · 2x zoom at night', 'white-line print', zoom_svg('night'))]
-        for m, note in (('midday', 'real data: Nov prop plane, Dec–Mar parked, Apr drone, May jet, Jun airliner, Jul blimp, Aug balloon, Sep blimp, Oct airship'),
-                        ('golden', 'golden hour'), ('night', 'night')):
-            items.append((f'4 · World, {m}', note, os.path.join(OUT, 'world', f'{m}.svg')))
-        kit.sheet(items, os.path.join(OUT, 'sheet.png'), cols=1, cell=1240, title='The fleet (months): paper plane → cargo airship')
+        if '--keep' not in sys.argv:
+            subprocess.run([sys.executable, os.path.join(ROOT, 'generator', 'world.py'), '--all', '--out', os.path.join(OUT, 'world')], check=True)
+        W2 = 1660 / (2 * README)                          # a 1660 px cell at 2x README scale, in art units (= 1200)
+        def side(svgs, gap=16):
+            """Several SVGs side by side in one SVG (each keeps its own units)."""
+            import re
+            x, H, body = 0, 0, []
+            for i, sv in enumerate(svgs):
+                sv = sv.replace('id="g"', f'id="g{i}"').replace('url(#g)', f'url(#g{i})')     # each keeps its own sky
+                m = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', sv); w, h = float(m[1]), float(m[2])
+                body.append(sv.replace('<svg ', f'<svg x="{x:.1f}" y="0" ', 1)); x += w + gap; H = max(H, h)
+            return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {x - gap:.1f} {H:.1f}" width="{x - gap:.1f}" height="{H:.1f}">{"".join(body)}</svg>'
+        def pair(ms, out):
+            """Worlds side by side at real README size (830 CSS px each)."""
+            imgs = ''.join(f'<img style="display:block;width:830px" src="file://{os.path.join(OUT, "world", m + ".svg")}">' for m in ms)
+            kit.shoot(f'<html><body style="margin:0;background:#f6f8fa;display:flex;align-items:flex-start;overflow:hidden">{imgs}</body></html>',
+                      830 * len(ms), 346, out, scale=1.5)
+            return out
+        pair(('midday', 'golden'), os.path.join(OUT, 'row-day.png')); pair(('night', 'dusk'), os.path.join(OUT, 'row-night.png'))
+        items = [('1 · Lineup, midday (2x README scale)', 'all nine at true relative size; Stearman-blue biplane, airmail paper plane, '
+                  'red-and-gold airliner, green-band blimp, blue-and-gold banded airship with a red container', lineup_svg('midday', scale_w=W2)),
+                 ('1b · Lineup, night (2x)', 'white-line print; liveries quieted by kit.pigment, gold = cabin, nav lights, burner', lineup_svg('night', scale_w=W2)),
+                 ('1c · Lineups at real size (830 px canvas: 1 unit = 0.69 px), midday and night', 'what the README shows',
+                  side([lineup_svg('midday', scale_w=1200, captions=False), lineup_svg('night', scale_w=1200, captions=False)], 0)),
+                 ('2 · 2x zoom: hot air balloon, jet airliner, cargo airship (midday | night)', 'README scale x2',
+                  side([zoom_svg('midday', ('balloon', 'airliner', 'airship')), zoom_svg('night', ('balloon', 'airliner', 'airship'))], 24)),
+                 ('3 · World at real size: midday | golden hour', 'real data: Nov biplane, Dec–Mar hangars, Apr drone, May jet, Jun airliner, '
+                  'Jul + Sep blimps, Aug balloon, Oct airship', os.path.join(OUT, 'row-day.png')),
+                 ('3b · World at real size: night | dusk', 'the night print keeps the liveries, quietly', os.path.join(OUT, 'row-night.png'))]
+        kit.sheet(items, os.path.join(OUT, 'sheet.png'), cols=1, cell=1660, title='Planes A · Golden-age liveries')
         print('sheet ->', os.path.join(OUT, 'sheet.png'))
 
 if __name__ == '__main__':

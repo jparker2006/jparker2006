@@ -480,7 +480,7 @@ def build(moment, days_, last):
     if MICROPRINT: words += ''.join(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Geist Mono" font-size="3.2" fill="{text_ink}" fill-opacity=".7" '
                      f'data-micro="1" aria-hidden="true">{c}</text>' for x, y, c in micro)
     title = (f'Jake Parker: a lake engraved from GitHub contributions, at {clock.LABEL[moment].lower()} in California. Mountains are years, '
-             f'aircraft are the last 12 months, reeds are the last 365 days; the numbers are contributions.')
+             f'aircraft are the last 12 months, flowers are the last 365 days; the numbers are contributions.')
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {VW} {VH}" width="{VW}" height="{VH}" role="img"><title>{title}</title>'
            f'<style>{kit.fonts()}</style><style>{MOTION_CSS}{lap_css()}</style><defs>{defs}</defs>'
            f'<g clip-path="url(#{P}card)">{"".join(out)}{stars}{"".join(out_cast)}{days_svg}{"".join(fleet_svg)}{cloud_svg}</g>{words}</svg>')
