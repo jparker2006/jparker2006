@@ -9,7 +9,7 @@ Hard gates (exit 1 if any fail):
   fleet     the 12 rolling months match the data; each tier is 9 + ceil(log2(month / record)), each craft its tier's kind
   days      the 365 rolling days match the data; each day's height is (base - top) * sqrt(count / max), also via days.heights()
   numbers   every number printed in the art (microprint included) is a real number from the data
-  text      readable labels are >= 11 px when the art is shown 830 px wide (GitHub's README width), microprint excepted
+  text      readable labels are >= 11 px at the width the art is shown (830 px desktop README, 324 px phone), microprint excepted
   contrast  readable labels have >= 4.5:1 contrast against the colour behind them (their data-bg)
   safe      no scripts, foreignObject, external links or external url() references
 Soft (reported only): file size (aim for < 500 KB).
@@ -37,6 +37,9 @@ def check(svg_path):
     fails, notes = [], []
     raw = open(svg_path).read(); root = ET.fromstring(raw)
     meta = json.load(open(os.path.splitext(svg_path)[0] + '.json'))
+    mountains.BAND = dict(meta['mountains']); mountains._CACHE.clear()          # check against the layout the art was drawn with
+    daysmod.BAND = dict(meta['days']['band']); daysmod._cache_days = None
+    display = meta.get('display', 830)
     days_, _ = data.load()
     last = datetime.date.fromisoformat(meta['last'])
     # years
@@ -82,11 +85,11 @@ def check(svg_path):
             if tok not in allowed and tok.replace(',', '') not in allowed:
                 fails.append(f'numbers: "{tok}" in "{s}" is not a number from the data')
     # text size and contrast
-    vb = [float(v) for v in root.get('viewBox').split()]; scale = 830 / vb[2]
+    vb = [float(v) for v in root.get('viewBox').split()]; scale = display / vb[2]
     readable = [t for t in texts if t.get('data-micro') != '1' and t.get('data-halo') != '1']   # halos are backing, not labels
     for t in readable:
         s = ''.join(t.itertext()); px = float(t.get('font-size', 16)) * scale
-        if px < 11 - 1e-6: fails.append(f'text: "{s}" is {px:.1f} px at 830 px wide (min 11)')
+        if px < 11 - 1e-6: fails.append(f'text: "{s}" is {px:.1f} px at {display} px wide (min 11)')
         bg = t.get('data-bg'); fill = t.get('fill', '#000000'); op = float(t.get('fill-opacity', 1))
         if not bg: fails.append(f'contrast: "{s}" has no data-bg'); continue
         cr = ratio(blend(fill, bg, op), bg)

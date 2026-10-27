@@ -12,14 +12,58 @@ import argparse, base64, datetime, json, math, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import kit, data, clock, fleet, days as daysmod, mountains, friends
-from kit import clamp, mix, line, q, BAYER, VW, VH, S
+from kit import clamp, mix, line, q, BAYER, S
 
-HZ = mountains.BAND['base']                          # the far shore and horizon
-SLOT_X0, SLOT_X1 = 64, 1136                          # the 12 months, oldest left
 LABELS = 'months'                                    # 'none' | 'months' (a month under each aircraft) | 'key' (a key line in the art)
-LABEL_H = 18                                         # room under an aircraft for its month label
 MICROPRINT = False                                   # tiny month captions under aircraft and hangars (off: the month labels say it)
-CLOUD_SCALE = .82
+
+# ------------------------------------------------------------------ layouts: one world, two compositions
+# 'desktop' is the wide print on github.com. 'phone' is a taller cut of the same world for small screens and the GitHub
+# app: shown about 324 px wide, so labels are larger and split over two lines. use_layout() sets the globals below
+# (VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI) and the pieces' bands.
+LAYOUTS = {
+    'desktop': dict(
+        VW=1200, VH=500, HZ=300, SLOT=(64, 1136), DISPLAY=830, S=1.4,   # canvas (units), width shown at (px), raster px per unit
+        LABEL=16.5, LINES=1, LH=0, LABEL_H=18, SIDE_PAD=(12, 8),        # data labels: size, lines, line height, room under craft
+        NAME=(64, 76, 34), MOMENT=(65, 102, 16.5), TITLE_BOX=(50, 40, 380, 108),
+        K=1, ALT=(60, 274, 60, 274),                                    # aircraft scale; altitude map (a0, a1) -> (y0, y1)
+        MOUNTAINS=dict(x0=40, x1=1160, base=300, amp=165), DAYS=dict(x0=0, x1=1200, base=500, top=400),
+        SUN=dict(dawn=(150, 292, 66), morning=(380, 178, 46), midday=(612, 60, 44), golden=(-40, 90), dusk=(30, 90), moon=34),
+        MOON=((180, 1120, 20), (60, 190, 10), 100, (880, 92), 50),      # x range, y range, preferred y, default, padding
+        CLOUD=.82, CLOUD_AT=((150, 1060, 12), (110, 250, 6), (330, 152), (420, 150)),
+        DUCKS=[(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)], POND=(232, 428, 96, 11, 34), DUCK_S=(1.3, 1.0, 1.0, 1.0),
+        NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2),
+        DY=(-132, 133, 12), DX=(-150, 151, 10), ORDER=(6, 0), REFLECT=170, NL=80, BEST_MARGIN=80, ZS=16),
+    'phone': dict(
+        VW=720, VH=900, HZ=540, SLOT=(30, 690), DISPLAY=324, S=2.0,
+        LABEL=25, LINES=2, LH=27, LABEL_H=60, SIDE_PAD=(34, 30),
+        NAME=(36, 92, 56), MOMENT=(38, 130, 25), TITLE_BOX=(24, 40, 470, 142),
+        K=.8, ALT=(60, 274, 178, 472),
+        MOUNTAINS=dict(x0=20, x1=700, base=540, amp=210), DAYS=dict(x0=0, x1=720, base=900, top=765),
+        SUN=dict(dawn=(90, 528, 55), morning=(228, 320, 40), midday=(232, 220, 38), golden=(-56, 75), dusk=(30, 75), moon=30),
+        MOON=((108, 670, 14), (110, 340, 8), 180, (530, 166), 40),
+        CLOUD=.76, CLOUD_AT=((96, 624, 10), (210, 450, 6), (240, 300), (250, 300)),
+        DUCKS=[(110, 704, 1.7), (168, 712, 1.3), (212, 709, 1.3), (256, 714, 1.3)], POND=(196, 704, 86, 10, 34), DUCK_S=(1.7, 1.3, 1.3, 1.3),
+        NIGHT_DUCKS=(75, 672, 290, 728), TURTLE=(470, 650, 1.7), KOI=(578, 724, 1.5),
+        DY=(-210, 211, 14), DX=(-120, 121, 6), ORDER=(8, 30), REFLECT=300, NL=130, BEST_MARGIN=70, ZS=25),
+}
+L_ = None
+def use_layout(name):
+    """Switch every global the composer reads (and the pieces' bands) to a layout."""
+    global L_, VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI, S
+    L_ = dict(LAYOUTS[name], name=name)
+    S = kit.S = fleet.S = L_['S']                                     # raster density, shared by every piece
+    VW, VH, HZ = L_['VW'], L_['VH'], L_['HZ']; SLOT_X0, SLOT_X1 = L_['SLOT']; LABEL_H = L_['LABEL_H']
+    CLOUD_SCALE, DUCKS, POND, TURTLE, KOI = L_['CLOUD'], L_['DUCKS'], L_['POND'], L_['TURTLE'], L_['KOI']
+    mountains.BAND = dict(L_['MOUNTAINS']); mountains._CACHE.clear()
+    daysmod.BAND = dict(L_['DAYS']); daysmod._cache_days = None
+def kk(v): return v if L_['K'] == 1 else v * L_['K']          # aircraft scale (exact for desktop)
+def alt_y(kind):
+    a0, a1, y0, y1 = L_['ALT']; a = fleet.ALTITUDE[kind]
+    return a if (a0, a1) == (y0, y1) else y0 + (a - a0) * (y1 - y0) / (a1 - a0)
+def lines_of(text): return text.split('\n')
+def label_w(text): return max(len(t) for t in lines_of(text)) * (L_['LABEL'] * .6 + .6)
+def two(a, b): return f'{a}\n{b}' if L_['LINES'] == 2 else f'{a} · {b}'
 
 # ------------------------------------------------------------------ the tint plate under the engraving, per moment
 TINT = {   # sky top, sky at the horizon, water far, water near, sun glow
@@ -45,10 +89,13 @@ def data_label(x, y, text, bg, preferred, P, anchor='middle'):
     light = _ratio(_rgb(ink), (0, 0, 0)) > _ratio(_rgb(ink), (255, 255, 255))
     halo = mix(bg, (14, 27, 58), .7) if light else mix(bg, (248, 246, 239), .72)
     eff = hexc(mix(bg, halo, .8))
-    attrs = f'x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}" font-family="Geist Mono" letter-spacing=".6" font-size="16.5"'
-    return (f'<text {attrs} fill="{hexc(halo)}" stroke="{hexc(halo)}" stroke-width="4.5" stroke-linejoin="round" '
-            f'filter="url(#{P}halo)" opacity=".85" data-halo="1" aria-hidden="true">{text}</text>'
-            f'<text {attrs} fill="{ink}" data-bg="{eff}">{text}</text>')
+    out = ''
+    for k, t in enumerate(lines_of(text)):
+        attrs = f'x="{x:.1f}" y="{y + k * L_["LH"]:.1f}" text-anchor="{anchor}" font-family="Geist Mono" letter-spacing=".6" font-size="{L_["LABEL"]:g}"'
+        out += (f'<text {attrs} fill="{hexc(halo)}" stroke="{hexc(halo)}" stroke-width="{4.5 * L_["LABEL"] / 16.5:g}" stroke-linejoin="round" '
+                f'filter="url(#{P}halo)" opacity=".85" data-halo="1" aria-hidden="true">{t}</text>'
+                f'<text {attrs} fill="{ink}" data-bg="{eff}">{t}</text>')
+    return out
 
 def ink_on(bg, preferred):
     """The moment's text ink if it reads on bg (>= 4.5:1), else whichever of deep navy or pale ink reads better."""
@@ -57,15 +104,15 @@ def ink_on(bg, preferred):
 
 def sun_spec(moment, summits):
     """Where the light source sits for each hand-composed moment."""
-    nx = summits[-1][0] if summits else 900
-    return {'dawn': ('sun', 150, HZ - 8, 66), 'morning': ('sun', 380, 178, 46), 'midday': ('sun', 612, 60, 44),
-            'golden': ('sun', nx, HZ - 40, 90), 'dusk': ('glow', nx, HZ + 30, 90), 'night': ('moon', None, None, 34)}[moment]
+    nx = summits[-1][0] if summits else VW * .75; U = L_['SUN']
+    return {'dawn': ('sun',) + U['dawn'], 'morning': ('sun',) + U['morning'], 'midday': ('sun',) + U['midday'],
+            'golden': ('sun', nx, HZ + U['golden'][0], U['golden'][1]), 'dusk': ('glow', nx, HZ + U['dusk'][0], U['dusk'][1]),
+            'night': ('moon', None, None, U['moon'])}[moment]
 
 # ------------------------------------------------------------------ the cast (always there, never data)
-DUCKS = [(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)]     # a mother and three ducklings (static layout, night)
-POND = (232, 428, 96, 11, 34)        # the ducks' loop: centre x, y, half-width, half-depth, seconds per lap
+# DUCKS (a mother and three ducklings, the static night row), POND (their loop: centre x, y, half-width, half-depth,
+# seconds per lap), TURTLE and KOI (x, y, scale) come from the layout.
 DUCK_GAP = 2.6                       # seconds between ducks along the loop (the mother leads)
-TURTLE, KOI = (452, 391, 1.3), (760, 418, 1.2)
 
 def cloud_sdf(u, v):
     parts = [(-52, -40, 34), (6, -64, 50), (62, -36, 28)]; hw, h = 110, 56; r = h / 2
@@ -148,9 +195,9 @@ def area(a, b, m=0):
 
 def craft_box(kind, x, y):
     """The craft's footprint including its moving parts (rotors can poke out of SIZE)."""
-    w, h = fleet.SIZE[kind]; b = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+    w, h = kk(fleet.SIZE[kind][0]), kk(fleet.SIZE[kind][1]); b = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
     for p in fleet.parts(kind):
-        u0, v0, u1, v1 = p['box']
+        u0, v0, u1, v1 = (kk(v) for v in p['box'])
         b = [min(b[0], x + u0), min(b[1], y + v0), max(b[2], x + u1), max(b[3], y + v1)]
     return tuple(b)
 
@@ -165,23 +212,26 @@ def place_fleet(months, keepouts, crest):
         kind = months[i][3]
         if not kind: continue
         lw = month_label_w(months, i)
-        w, h = fleet.SIZE[kind]; y0 = fleet.ALTITUDE[kind]
+        w, h = kk(fleet.SIZE[kind][0]), kk(fleet.SIZE[kind][1]); y0 = alt_y(kind)
         cands, near = [], []
-        for dy in range(-132, 133, 12):
-            for dx in range(-150, 151, 10):
+        for dy in range(*L_['DY']):
+            for dx in range(*L_['DX']):
                 x = min(max(slot_x(i) + dx, 18 + w / 2), VW - 18 - w / 2); y = y0 + dy
-                # the months must still read in order: every craft stays between its neighbours' centres
-                if any((j < i and px >= x - 6) or (j > i and px <= x + 6) for j, px in fixed(placed)): continue
+                # the months must still read in order: every craft stays between its neighbours' centres, with room left
+                # for the months in between (ORDER = gap to the next month, extra gap per month in between)
+                g0, g1 = L_['ORDER']
+                if any((j < i and px >= x - g0 - g1 * (i - j - 1)) or (j > i and px <= x + g0 + g1 * (j - i - 1))
+                       for j, px in fixed(placed)): continue
                 c0 = craft_box(kind, x, y)
                 for side, extra in (('below', 0), ('above', 3), ('left', 5), ('right', 5)):   # where the month label goes
                     b = c0
                     if LABELS == 'months':
                         if side == 'below': b = (min(c0[0], x - lw / 2 - 4), c0[1], max(c0[2], x + lw / 2 + 4), c0[3] + LABEL_H)
                         elif side == 'above': b = (min(c0[0], x - lw / 2 - 4), c0[1] - LABEL_H, max(c0[2], x + lw / 2 + 4), c0[3])
-                        elif side == 'left': b = (c0[0] - lw - 10, min(c0[1], y - 12), c0[2], max(c0[3], y + 8))
-                        else: b = (c0[0], min(c0[1], y - 12), c0[2] + lw + 10, max(c0[3], y + 8))
+                        elif side == 'left': b = (c0[0] - lw - 10, min(c0[1], y - L_['SIDE_PAD'][0]), c0[2], max(c0[3], y + L_['SIDE_PAD'][1]))
+                        else: b = (c0[0], min(c0[1], y - L_['SIDE_PAD'][0]), c0[2] + lw + 10, max(c0[3], y + L_['SIDE_PAD'][1]))
                     elif side != 'below': continue
-                    if b[1] < 14 or b[3] > HZ - 8: continue
+                    if b[1] < 14 or b[3] > HZ - 8 or b[0] < 4 or b[2] > VW - 4: continue      # craft and label stay on the canvas
                     cost = abs(dy) / 12 + abs(dx) / 10 + extra
                     clash = sum(area(b, o, 8) for o in keepouts) + sum(area(b, p[2], 10) for p in placed.values())
                     if clash: near.append((clash, cost, x, y, b, side)); continue
@@ -210,7 +260,7 @@ def quiet_label(months, i0, i1):
         m = months[i][0]
         return f"{data.MON[m.month]} '{m.year % 100:02d}" if i in (0, len(months) - 1) else data.MON[m.month]
     total = sum(months[i][1] for i in range(i0, i1 + 1))
-    return (name(i0) if i0 == i1 else f'{name(i0)}\u2013{name(i1)}') + f' \u00b7 {total:,}'
+    return two(name(i0) if i0 == i1 else f'{name(i0)}\u2013{name(i1)}', f'{total:,}')
 
 def quiet_spots(months, crest):
     """Where each quiet run's label sits: in the sky over its hangars, like the other month labels, just clear of the
@@ -218,39 +268,39 @@ def quiet_spots(months, crest):
     out = []
     for i0, i1 in quiet_runs(months):
         text = quiet_label(months, i0, i1); x = sum(slot_x(i) for i in range(i0, i1 + 1)) / (i1 - i0 + 1)
-        w = len(text) * (16.5 * .6 + .6)
+        w = label_w(text); up = (len(lines_of(text)) - 1) * L_['LH']
         land = min(crest(xx) for xx in range(int(x - w / 2) - 6, int(x + w / 2) + 7, 3))
-        y = min(land - 10, HZ - fleet.PARKED[1] - 7)
-        out.append((x, y, text, (x - w / 2 - 4, y - 15, x + w / 2 + 4, y + 5)))
+        y = min(land - 10, HZ - kk(fleet.PARKED[1]) - 7) - up                # y = the first line's baseline
+        out.append((x, y, text, (x - w / 2 - 4, y - 15 * L_['LABEL'] / 16.5, x + w / 2 + 4, y + up + 5)))
     return out
 
 def month_label(months, i):
     m, v = months[i][0], months[i][1]
     name = f"{data.MON[m.month]} '{m.year % 100:02d}" if i in (0, len(months) - 1) else data.MON[m.month]
-    return f'{name} · {v:,}'
-def month_label_w(months, i): return len(month_label(months, i)) * (16.5 * .6 + .6)
+    return two(name, f'{v:,}')
+def month_label_w(months, i): return label_w(month_label(months, i))
 
 def place_moon(boxes, r):
     """At night the moon rises wherever the sky is emptiest."""
-    best, score = (880, 92), -float('inf')
-    for cx in range(180, 1120, 20):
-        for cy in range(60, 190, 10):
-            b = (cx - r - 50, cy - r - 50, cx + r + 50, cy + r + 50)
+    xr, yr, py, best, pad = L_['MOON']; score = -float('inf')
+    for cx in range(*xr):
+        for cy in range(*yr):
+            b = (cx - r - pad, cy - r - pad, cx + r + pad, cy + r + pad)
             gap = min([max(o[0] - b[2], b[0] - o[2], o[1] - b[3], b[1] - o[3]) for o in boxes] + [300])
-            gap -= abs(cy - 100) * .4                                     # prefer a moon high in the sky
+            gap -= abs(cy - py) * .4                                      # prefer a moon high in the sky
             if gap > score: best, score = (cx, cy), gap
     return best
 
 def place_cloud(boxes, title_box, crest):
     """The cloud floats in the emptiest stretch of sky: never over a month, the sun or moon, a summit or the title.
     Among clear spots it prefers the upper-left third (it balances the busy right where the newest months fly)."""
-    s = CLOUD_SCALE; best, score = (330, 152), -float('inf')
-    for cx in range(150, 1060, 12):
-        for cy in range(110, 250, 6):
+    s = CLOUD_SCALE; xr, yr, best, (px, py) = L_['CLOUD_AT']; score = -float('inf')
+    for cx in range(*xr):
+        for cy in range(*yr):
             b = (cx - 120 * s, cy - 116 * s, cx + 122 * s, cy + 2 * s)
             if overlaps(b, title_box, 12) or b[3] > min(crest(b[0]), crest(b[2]), crest(cx)) - 20: continue
             gap = min([max(o[0] - b[2], b[0] - o[2], o[1] - b[3], b[1] - o[3]) for o in boxes] + [120])
-            sc = min(gap, 60) - abs(cx - 420) * .03 - abs(cy - 150) * .05
+            sc = min(gap, 60) - abs(cx - px) * .03 - abs(cy - py) * .05
             if sc > score: best, score = (cx, cy), sc
     return best
 
@@ -309,9 +359,9 @@ def make_sky_water(moment, light, sun, years):
         f = (y - HZ) / (VH - HZ); gx = abs(x - sx); gw = 12 + (y - HZ) * .3
         t = (.06 + .05 * f) if night else (.06 + .17 * f ** 1.2) * (1 - .55 * math.exp(-gx / (gw * 2.2)))
         col = ink if not night else hair
-        n = 80 * f ** .72; L = int(math.floor(n + .5))
+        n = L_['NL'] * f ** .72; L = int(math.floor(n + .5))
         broken = ((int(y * 1.3) * 2654435761 + int(x / 13 + 3 * math.sin(y * .7)) * 40503) >> 7) % 7 > 1
-        r = reflect(x, y, years, light) if (reflect and y < HZ + 170) else None   # the land, mirrored in still water
+        r = reflect(x, y, years, light) if (reflect and y < HZ + L_['REFLECT']) else None   # the land, mirrored in still water
         if r:
             tone, rk = r
             if rk == 'foam': t = 0
@@ -325,7 +375,7 @@ def make_sky_water(moment, light, sun, years):
         for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
-        return col, line(n + wob, clamp(t) * .9, 1 / S * 80 * .72 * max(f, .02) ** -.28 / (VH - HZ))
+        return col, line(n + wob, clamp(t) * .9, 1 / S * L_['NL'] * .72 * max(f, .02) ** -.28 / (VH - HZ))
     return alpha_layer(fn, 0, 0, VW, VH)
 
 # ------------------------------------------------------------------ build
@@ -372,7 +422,7 @@ def build(moment, days_, last):
         k = int(x)
         if k not in crest_cache: crest_cache[k] = mountains.crest(k, years)
         return crest_cache[k]
-    title_box = (50, 40, 380, 108)
+    title_box = L_['TITLE_BOX']
     keepouts = [title_box]
     for (sx_, sy_), (yr_, tot_) in zip(summits, years):
         hgt = HZ - sy_
@@ -429,10 +479,10 @@ def build(moment, days_, last):
     # 5. cast on the water
     out_cast = []
     if night:                                                          # asleep in a row, gently bobbing
-        img, b = kit.raster(lambda x, y: duck_at(x, y, light), 120, 400, 310, 446); out_cast.append(f'<g class="drowse">{img}</g>'); sizes['ducks'] = len(b)
+        img, b = kit.raster(lambda x, y: duck_at(x, y, light), *L_['NIGHT_DUCKS']); out_cast.append(f'<g class="drowse">{img}</g>'); sizes['ducks'] = len(b)
     else:                                                              # a family swimming its loop, ducklings trailing mum
         pcx, pcy, prx, pry, lap = POND; x0 = pcx - prx; sizes['ducks'] = 0
-        for j, s_ in enumerate((1.3, 1.0, 1.0, 1.0)):
+        for j, s_ in enumerate(L_['DUCK_S']):
             d = (x0, pcy, s_)
             img, b = kit.raster(lambda x, y, d=d: duck_at(x, y, light, [d]), x0 - 38 * s_, pcy - 17 * s_, x0 + 21 * s_, pcy + 8 * s_)
             sizes['ducks'] += len(b)
@@ -452,26 +502,26 @@ def build(moment, days_, last):
     for i, (m, v, t, k) in enumerate(months):
         cap = f'{data.MON[m.month]} {m.year} · {v:,}'
         if not k:                                                      # parked on the far shore
-            pw, ph = fleet.PARKED; px_, py_ = slot_x(i), HZ - ph / 2 - 1
-            img, b = kit.raster(lambda x, y, px_=px_, py_=py_: fleet.parked(x - px_, y - py_, light), px_ - pw / 2 - 1, py_ - ph / 2 - 1, px_ + pw / 2 + 1, py_ + ph / 2 + 1)
+            pw, ph = kk(fleet.PARKED[0]), kk(fleet.PARKED[1]); px_, py_ = slot_x(i), HZ - ph / 2 - 1; K = L_['K']
+            img, b = kit.raster(lambda x, y, px_=px_, py_=py_: fleet.parked((x - px_) / K, (y - py_) / K, light), px_ - pw / 2 - 1, py_ - ph / 2 - 1, px_ + pw / 2 + 1, py_ + ph / 2 + 1)
             fleet_svg.append(img); micro.append((px_, HZ + 5, cap + ' · PARKED')); continue
-        x, y, _, side = placed[i]; w, h = fleet.SIZE[k]; bx = craft_box(k, x, y)
-        img, b = kit.raster(lambda xx, yy, k=k, x=x, y=y: fleet.shade(k, xx - x, yy - y, light), bx[0] - 1, bx[1] - 1, bx[2] + 1, bx[3] + 1)
+        x, y, _, side = placed[i]; bx = craft_box(k, x, y); K = L_['K']
+        img, b = kit.raster(lambda xx, yy, k=k, x=x, y=y: fleet.shade(k, (xx - x) / K, (yy - y) / K, light), bx[0] - 1, bx[1] - 1, bx[2] + 1, bx[3] + 1)
         sizes[f'fleet{i}'] = len(b); parts = []
         for p in fleet.parts(k):
-            u0, v0, u1, v1 = p['box']
-            pimg, pb = kit.raster(lambda xx, yy, p=p, x=x, y=y: p['shade'](xx - x, yy - y, light), x + u0, y + v0, x + u1, y + v1)
-            parts.append(f'<g class="{p["motion"]}" style="transform-origin:{x + p["pivot"][0]:.1f}px {y + p["pivot"][1]:.1f}px">{pimg}</g>')
+            u0, v0, u1, v1 = (kk(v) for v in p['box'])
+            pimg, pb = kit.raster(lambda xx, yy, p=p, x=x, y=y: p['shade']((xx - x) / K, (yy - y) / K, light), x + u0, y + v0, x + u1, y + v1)
+            parts.append(f'<g class="{p["motion"]}" style="transform-origin:{x + kk(p["pivot"][0]):.1f}px {y + kk(p["pivot"][1]):.1f}px">{pimg}</g>')
         mot = fleet.MOTION.get(k)
         delay = f'animation-delay:-{(i * 1.9) % 11:.1f}s'
         fleet_svg.append(f'<g class="{mot or ""}" style="{delay}">{img}{"".join(parts)}</g>')
         if LABELS == 'months':
-            lx, anchor = x, 'middle'
-            if side == 'below': ly = bx[3] + 14
-            elif side == 'above': ly = bx[1] - 6
-            else: ly = y + 6; lx, anchor = (bx[0] - 6, 'end') if side == 'left' else (bx[2] + 6, 'start')
+            lx, anchor = x, 'middle'; text = month_label(months, i); up = (len(lines_of(text)) - 1) * L_['LH']
+            if side == 'below': ly = bx[3] + 14 * L_['LABEL'] / 16.5
+            elif side == 'above': ly = bx[1] - 6 - up
+            else: ly = y + 6 * L_['LABEL'] / 16.5 - up / 2; lx, anchor = (bx[0] - 6, 'end') if side == 'left' else (bx[2] + 6, 'start')
             bgl = mix(tint[0], tint[1], clamp(ly / HZ))
-            month_labels.append(data_label(lx, ly, month_label(months, i), bgl, text_ink, P, anchor))
+            month_labels.append(data_label(lx, ly, text, bgl, text_ink, P, anchor))
             micro.append((x, ly + 5, cap))
         else:
             micro.append((x, bx[3] + 4.5, cap))
@@ -482,12 +532,13 @@ def build(moment, days_, last):
     img, b = kit.raster(lambda x, y: cloud_at((x - cx) / s, (y - cy) / s, light), cx - 122 * s, cy - 118 * s, cx + 124 * s, cy + 3 * s); sizes['cloud'] = len(b)
     cloud_svg = f'<g class="cloud">{img}</g>'
     if night:
-        cloud_svg += ''.join(f'<text x="{cx + 70 * s + 12 * j:.1f}" y="{cy - 92 * s - 14 * j:.1f}" font-family="Geist Mono" font-size="{16 + 3 * j}" fill="{text_ink}" data-bg="{hexc(tint[0])}">z</text>' for j in range(3))
+        zs = L_['ZS']; zk = zs / 16
+        cloud_svg += ''.join(f'<text x="{cx + 70 * s + 12 * zk * j:.1f}" y="{cy - 92 * s - 14 * zk * j:.1f}" font-family="Geist Mono" font-size="{zs + 3 * zk * j:g}" fill="{text_ink}" data-bg="{hexc(tint[0])}">z</text>' for j in range(3))
     # 8. night sky details
     stars = ''
     if night:
         for k2 in range(220):
-            x = (k2 * 7919 + 13) % 1187 + 6.5; y = (k2 * 104729 + 7) % 997 / 997 * (HZ - 24) + 8
+            x = (k2 * 7919 + 13) % (VW - 13) + 6.5; y = (k2 * 104729 + 7) % 997 / 997 * (HZ - 24) + 8
             if any(overlaps((x - 4, y - 4, x + 4, y + 4), o, 6) for o in boxes + [title_box]) or math.hypot(x - sx, y - sy) < sr + 60: continue
             r = .7 + (k2 * 31) % 9 / 9; tw = f' class="star" style="animation-delay:-{(k2 * .53) % 4:.2f}s"' if k2 % 3 == 0 else ''
             stars += (f'<path d="M{x:.1f} {y - 2.4 * r:.1f}L{x + .55 * r:.1f} {y - .55 * r:.1f}L{x + 2.4 * r:.1f} {y:.1f}L{x + .55 * r:.1f} {y + .55 * r:.1f}'
@@ -496,15 +547,18 @@ def build(moment, days_, last):
     # 9. text
     mono = 'font-family="Geist Mono" letter-spacing="1.6"'; data_mono = 'font-family="Geist Mono" letter-spacing=".6"'
     bg_name, bg_line, bg_cap = mix(tint[0], tint[1], .25), mix(tint[0], tint[1], .34), mix(tint[2], tint[3], .1)
-    words = (f'<text x="64" y="76" font-family="Geist" font-size="34" letter-spacing="-.4" fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
-             f'<text x="65" y="102" {mono} font-size="16.5" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · CALIFORNIA</text>')
+    (nx_, ny_, nf), (mx_, my_, mf) = L_['NAME'], L_['MOMENT']
+    words = (f'<text x="{nx_}" y="{ny_}" font-family="Geist" font-size="{nf}" letter-spacing="-.4" fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
+             f'<text x="{mx_}" y="{my_}" {mono} font-size="{mf:g}" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · CALIFORNIA</text>')
     for (yr, tot), (x, y) in zip(years, summits):
-        words += data_label(x, HZ + 19, f'{yr} · {tot:,}', bg_cap, text_ink, P)
+        words += data_label(x, HZ + 19 * L_['LABEL'] / 16.5, two(yr, f'{tot:,}'), bg_cap, text_ink, P)
     # the tallest reed carries its number: it sets the scale for every day
     best_d, best_c = max(recent, key=lambda p: (p[1], p[0]))
     if best_c:
-        bx_ = min(max(day_x(best_d), 80), VW - 80); by_ = daysmod.BAND['top'] - 8; bgr = mix(tint[2], tint[3], clamp((by_ - HZ) / (VH - HZ)))
-        words += data_label(bx_, by_, f'{data.MON[best_d.month]} {best_d.day} · {best_c:,}', bgr, text_ink, P)
+        bt = two(f'{data.MON[best_d.month]} {best_d.day}', f'{best_c:,}'); m_ = L_['BEST_MARGIN']
+        bx_ = min(max(day_x(best_d), m_), VW - m_); by_ = daysmod.BAND['top'] - 8 - (len(lines_of(bt)) - 1) * L_['LH']
+        bgr = mix(tint[2], tint[3], clamp((by_ - HZ) / (VH - HZ)))
+        words += data_label(bx_, by_, bt, bgr, text_ink, P)
     words += ''.join(month_labels)
     for qx, qy, qtext, _ in quiet:
         words += data_label(qx, qy, qtext, mix(tint[0], tint[1], clamp(qy / HZ)), text_ink, P)
@@ -522,17 +576,20 @@ def build(moment, days_, last):
     meta = dict(moment=moment, last=last.isoformat(), years=[dict(year=y, total=t, summit=[sx_, sy_]) for (y, t), (sx_, sy_) in zip(years, summits)],
                 mountains=mountains.BAND, fleet=[dict(month=m.isoformat()[:7], total=v, tier=t, kind=k) for m, v, t, k in months],
                 record_month=data.record_month(days_), days=dict(band=daysmod.BAND, counts=[c for _, c in recent], heights=daysmod.heights(recent)),
-                sizes=sizes)
+                layout=L_['name'], display=L_['DISPLAY'], sizes=sizes)
     return svg, meta
 
 WHEN = datetime.datetime.now(clock.TZ)
+use_layout('desktop')
 
 def main():
     global WHEN
     ap = argparse.ArgumentParser()
     ap.add_argument('--moment', choices=clock.MOMENTS); ap.add_argument('--when'); ap.add_argument('--all', action='store_true')
     ap.add_argument('--data'); ap.add_argument('--out'); ap.add_argument('--labels', choices=('none', 'months', 'key'))
+    ap.add_argument('--layout', choices=tuple(LAYOUTS), default='desktop')
     a = ap.parse_args()
+    use_layout(a.layout)
     global LABELS
     if a.labels: LABELS = a.labels
     if a.when: WHEN = datetime.datetime.fromisoformat(a.when).replace(tzinfo=clock.TZ)

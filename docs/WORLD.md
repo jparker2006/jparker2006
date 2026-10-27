@@ -64,6 +64,16 @@ y   0 ┌───────────────────────�
  500  └──────────────────────────────────────────────────────────────┘
 ```
 
+## 4b. The phone cut
+
+Phones (and the GitHub app) get a taller cut of the same world: `world.py --layout phone`, a 720 x 900 canvas shown
+about 324 px wide. Everything is drawn by the same pieces and rules; the layout (`LAYOUTS['phone']` in `world.py`) only
+changes the composition: labels are 25 units (at least 11 px on a phone) and split over two lines ("OCT '26" over
+"2,689"), aircraft are drawn at 0.8 scale with their natural altitudes spread over a taller sky, months keep their order
+with room for the months between them, the cast is a little larger, and the raster is denser (2 px per unit).
+It is served as a JPEG (`tools/raster.sh`), the format the GitHub app always shows. The README's `<picture>` gives screens
+600 px and wider the animated desktop SVG; everything narrower, and any app that ignores `<picture>`, gets the JPEG.
+
 ## 5. Motion (gentle life only)
 
 Small loops, no travel: propellers and rotors spin, the drone hovers, the balloon and blimps bob, the cloud drifts, the
