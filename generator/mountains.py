@@ -3,7 +3,9 @@ tools/check.py rely on it.
 
     BAND = dict(x0, x1, base, amp)   years run oldest (x0) to newest (x1); the land stands on y = base (the far shore);
                                      the biggest year's summit is amp units tall.
-    summits(years) -> [(x, y)]       the highest point of each year's mountain: y = base - amp * total / max_total. Checked.
+    summits(years) -> [(x, y)]       the highest point of each year's mountain: y = base - amp * sqrt(total / max_total). Checked.
+                                     (square root, so quiet years stay visible as hills; every summit is labeled with its
+                                     exact total, and the order of heights is the order of totals)
     crest(x, years) -> y             top of the land at x (world.py uses it for reflections and keep-outs); base = no land.
     shade(x, y, years, light)        -> (r, g, b) or None: opaque land at (x, y), None in the sky. Just below the base
                                      (y < base + 1) it may draw waterline detail (the reef of a quiet year).
@@ -13,7 +15,7 @@ tools/check.py rely on it.
 
 years = [(year, total)], oldest first; the last one is the current year (still growing).
 
-Honesty: the summit of each year sits at its slot centre at exactly base - amp * total / max_total, and no land inside a
+Honesty: the summit of each year sits at its slot centre at exactly base - amp * sqrt(total / max_total), and no land inside a
 year's slot rises above that year's summit (the slot's own summit is the highest point of its slot). Everything else,
 the trees, rock, snow, foothills and reefs, is art, shaped to fit under those heights.
 
@@ -35,7 +37,7 @@ def _slot(years):
 
 def summits(years):
     n, w = _slot(years); mx = max((t for _, t in years), default=0) or 1
-    return [(BAND['x0'] + (i + .5) * w, BAND['base'] - BAND['amp'] * t / mx) for i, (_, t) in enumerate(years)]
+    return [(BAND['x0'] + (i + .5) * w, BAND['base'] - BAND['amp'] * math.sqrt(t / mx)) for i, (_, t) in enumerate(years)]
 
 # ------------------------------------------------------------------ profiles: P(u) falls from 1 (summit) to 0 (foot)
 def _table(P):
@@ -174,7 +176,7 @@ def _build(years):
     for i, ((yr, tot), (sx, sy)) in enumerate(zip(years, S)):
         h = H[i]; seed = yr * 7 + 3; jit = lambda k: .85 + .3 * kit.rnd(yr, k)
         if h <= 0: continue
-        if h >= 40:                                        # a great year: rock and snow above the forest
+        if h >= 90:                                        # a great year: rock and snow above the forest
             W = 1.25 * h
             WL = fit(sx, h, W * jit(1), -1, _peak_inv, 4); WR = fit(sx, h, W * jit(2), 1, _peak_inv, 4)
             masses.append(Mass(sx, h, WL, WR, 'peak', .55, seed, r=2.9, summit=True))

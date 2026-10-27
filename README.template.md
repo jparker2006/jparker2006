@@ -10,6 +10,6 @@
 </p>
 
 <p align="center">
-  Writing code since I was 13. Building <a href="https://github.com/jparker2006/OpenWiz">OpenWiz</a> right now. Massive Lakers fan.<br>
+  Writing code since I was 13. Building <a href="https://github.com/jparker2006/OpenWiz">OpenWiz</a>. OSS Enthusiast.<br>
   <a href="https://jhparker.vercel.app/">jhparker.vercel.app</a>
 </p>

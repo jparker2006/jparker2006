@@ -9,13 +9,17 @@ import kit
 
 BAND = dict(x0=0, x1=1200, base=500, top=400)
 SLICES = 4
-FORM = 'A'
+FORM = 'B'
+# flower pigments (decoration only: a day's height carries its count). Chosen to stay distinct for colourblind eyes.
+PIGMENTS = [(230, 120, 40), (240, 190, 40), (90, 150, 220), (200, 110, 170), (250, 250, 245), (232, 88, 60)]
 XMAP = None          # optional date -> x (world.py puts each day under its month's aircraft)
 
 
 def heights(days):
+    """A day's height: square root of its count on one shared scale (the tallest is labeled with its exact count),
+    so ordinary days still show and the busiest still stand out."""
     mx = max((c for _, c in days), default=0) or 1
-    return [(BAND['base'] - BAND['top']) * c / mx for _, c in days]
+    return [(BAND['base'] - BAND['top']) * (c / mx) ** .5 for _, c in days]
 
 
 def x_of(i, n):
@@ -62,8 +66,8 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
     # The upper envelope is clipped to [base-height, base], even for the
     # tiniest day. No minimum height, decorative stalk, or head above the tip.
     stem_top = 1.0
-    if h > (17 if flower else 26):
-        hh = min(4.2 if flower else 12, h * .15)
+    if h > (4 if flower else 26):
+        hh = min(7.5, 1.6 + h * .085) if flower else min(12, h * .15)
         stem_top = 1 - hh / h
         cy = base - h + hh
         tipx = _stem(cx, bend, 1 - hh / h)
@@ -75,11 +79,14 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
             radius = math.hypot(u, v)
             edge = .78 + .22 * math.cos(5 * angle)
             if radius <= edge:
-                if radius < .25:
-                    return kit.outline(light)
-                if radius > edge - .14:
-                    return kit.outline(light, .8)
-                return kit.engrave(kit.form(u, v, light), y + x * .4, light, sp=1.8)
+                pig = PIGMENTS[int(r * 997) % len(PIGMENTS)]
+                if light['night']: pig = kit.mix(pig, light['paper'], .55)
+                if radius < .28:
+                    return light['gold'] if not light['night'] else kit.mix(light['gold'], light['paper'], .3)   # golden centre
+                if radius > edge - .16:
+                    return kit.mix(pig, (40, 40, 60), .45)                   # petal rim
+                tone = kit.form(u, v, light)
+                return kit.mix(kit.mix(pig, (255, 255, 255), .25), kit.mix(pig, (30, 30, 50), .35), kit.q(kit.line((y + x * .4) / 1.6, .25 + .5 * tone, .5 / 1.6)))
         else:
             hw = min(2.6, 1.2 + h * .018)
             d = kit.ell(x, y, tipx, cy, hw, hh)
@@ -94,8 +101,9 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
                     return kit.outline(light, .85)
                 return kit.engrave(.3 + .65 * tone, y + .45 * nx, light, sp=1.6)
     width = min(1.05, .42 + h * .011) * (1 - .4 * t)
+    green = flower and not light['night']
     if t <= stem_top and abs(x - sx) < width:
-        return kit.outline(light, .97)
+        return (52, 110, 70) if green else kit.outline(light, .97)
     # Two tapered, bowed blades attached to the same root/stem, never extra
     # data plants. Their tips stay well below the main tip.
     if h > 3:
@@ -107,6 +115,7 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
                 bx = anchor + spread * (2 * u - u * u) + bend * .25 * u
                 blade = min(1.9, .35 + h * .035) * math.sin(math.pi * u) ** .7
                 if abs(x - bx) < blade:
+                    if green: return kit.mix((96, 150, 84), (40, 92, 60), kit.q(kit.line(((x - bx) * 2 + y * .16) / 1.5, .55, .5 / 1.5)))
                     return kit.engrave(.86, (x - bx) * 2 + y * .16, light, sp=1.5) if blade > .9 else kit.outline(light, .92)
     return None
 

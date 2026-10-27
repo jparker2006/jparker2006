@@ -13,13 +13,14 @@ hs = days.heights(recent)
 assert len(hs) == 365
 assert max(hs) == days.BAND['base'] - days.BAND['top']
 for (_, count), h in zip(recent, hs):
-    assert h == (days.BAND['base'] - days.BAND['top']) * count / max(c for _, c in recent)
+    assert h == (days.BAND['base'] - days.BAND['top']) * (count / max(c for _, c in recent)) ** .5   # square-root scale
 assert days.heights([]) == []
 zero = [(last, 0)]
+default_form = days.FORM
 for form in 'ABC':
     days.FORM = form
     for light in kit.LIGHTS.values():
-        assert all(days.shade(x, y, zero, light) is None for x in range(0, 1200, 7) for y in range(432, 501, 3))
+        assert all(days.shade(x, y, zero, light) is None for x in range(0, 1200, 7) for y in range(days.BAND['top'], 501, 3))
         assert days.shade(600, 500, [], light) is None
     # Probe each real plant directly so neighbours cannot hide a bad tip.
     for i, ((date, count), h) in enumerate(zip(recent, hs)):
@@ -38,8 +39,8 @@ for form in 'ABC':
             width = min(10, 1.5 + h * .22)
             tipx = kit.clamp(cx + bend * .5 + width * .32, .15, 1199.85)
         else:
-            threshold = 17 if form == 'B' else 23
-            hh = min(4.2 if form == 'B' else 8, h * .18) if h > threshold else 0
+            if form == 'B': hh = min(7.5, 1.6 + h * .085) if h > 4 else 0
+            else: hh = min(12, h * .15) if h > 26 else 0
             tipx = days._stem(cx, bend, 1 - hh / h)
         tipy = days.BAND['base'] - h + min(.00001, h / 100)
         assert fn(tipx, tipy) is not None, (form, date, h)
@@ -54,5 +55,5 @@ for form in 'ABC':
     assert all(days.shade(days.x_of(i, 365), y, recent, kit.LIGHTS['midday']) is None
                for i, (d, c) in enumerate(recent) if datetime.date(2026, 1, 1) <= d <= datetime.date(2026, 3, 31)
                for y in (432, 460, 490, 499, 500))
-days.FORM = 'A'
-print('PASS: exact 365-day scale; all 143 live tips in A/B/C; zero and empty windows; all six lights; empty winter.')
+days.FORM = default_form
+print('PASS: exact square-root 365-day scale; all live tips in A/B/C; zero and empty windows; all six lights; empty winter.')

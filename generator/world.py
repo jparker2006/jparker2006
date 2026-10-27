@@ -62,7 +62,9 @@ def sun_spec(moment, summits):
             'golden': ('sun', nx, HZ - 40, 90), 'dusk': ('glow', nx, HZ + 30, 90), 'night': ('moon', None, None, 34)}[moment]
 
 # ------------------------------------------------------------------ the cast (always there, never data)
-DUCKS = [(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)]     # a mother leads three
+DUCKS = [(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)]     # a mother and three ducklings (static layout, night)
+POND = (232, 428, 96, 11, 34)        # the ducks' loop: centre x, y, half-width, half-depth, seconds per lap
+DUCK_GAP = 2.6                       # seconds between ducks along the loop (the mother leads)
 TURTLE, KOI = (452, 388, .95), (760, 418, 1.2)
 
 def cloud_sdf(u, v):
@@ -94,11 +96,13 @@ def cloud_at(u, v, light):
     if t < .03: return paper
     return mix(paper, ink, q(line(-d / 2.5, t, 1 / S / 2.5)))
 
-def duck_at(x, y, light):
+def duck_at(x, y, light, ducks=None):
     gold = light['gold']; body = mix(gold, (252, 226, 120), .55) if not light['night'] else mix(gold, (120, 110, 80), .35)
     dark, beak = mix(gold, (140, 90, 20), .55), (226, 132, 58) if not light['night'] else (170, 104, 52)
-    for dx, dy, s in DUCKS:
+    for dx, dy, s in (ducks or DUCKS):
         bx, by = (x - dx) / s, (y - dy) / s
+        if -36 < bx < -9 and -1 < by < 5 and not light['night'] and abs(abs(by - 2) - (-bx - 9) * .16) < .55:
+            return mix(light['paper'], light['ink'], .55)                          # a little V wake, swims along with the duck
         if not (-18 < bx < 21 and -17 < by < 8): continue
         def shape(a, b):
             body_ = ((a / 13) ** 2 + (b / 6.5) ** 2 <= 1 and b > -4.5) or (a < -9 and -6 < b < 1 and b > -1.6 * (a + 16))
@@ -165,19 +169,26 @@ def place_fleet(months, keepouts, crest):
             for dx in range(-150, 151, 10):
                 x = min(max(slot_x(i) + dx, 18 + w / 2), VW - 18 - w / 2); y = y0 + dy
                 # the months must still read in order: every craft stays between its neighbours' centres
-                if any((j < i and px >= x - 6) or (j > i and px <= x + 6) for j, (px, py, pb) in placed.items()): continue
-                b = craft_box(kind, x, y)
-                if LABELS == 'months': b = (min(b[0], x - lw / 2 - 4), b[1], max(b[2], x + lw / 2 + 4), b[3] + LABEL_H)   # keep the label clear too
-                if b[1] < 14 or b[3] > HZ - 8: continue
-                cost = abs(dy) / 12 + abs(dx) / 10
-                clash = sum(area(b, o, 8) for o in keepouts) + sum(area(b, p[2], 10) for p in placed.values())
-                if clash: near.append((clash, cost, x, y, b)); continue
-                land = sum(1 for k in range(13) if b[3] > crest(b[0] + (b[2] - b[0]) * k / 12) - 8)
-                cands.append((cost + 40 * land, x, y, b))
-        if cands: _, x, y, b = min(cands)
-        elif near: _, _, x, y, b = min(near)                              # no clear spot: overlap as little as possible
-        else: x = min(max(slot_x(i), 18 + w / 2), VW - 18 - w / 2); y = y0; b = craft_box(kind, x, y)
-        placed[i] = (x, y, b)
+                if any((j < i and p[0] >= x - 6) or (j > i and p[0] <= x + 6) for j, p in placed.items()): continue
+                c0 = craft_box(kind, x, y)
+                for side, extra in (('below', 0), ('above', 3), ('left', 5), ('right', 5)):   # where the month label goes
+                    b = c0
+                    if LABELS == 'months':
+                        if side == 'below': b = (min(c0[0], x - lw / 2 - 4), c0[1], max(c0[2], x + lw / 2 + 4), c0[3] + LABEL_H)
+                        elif side == 'above': b = (min(c0[0], x - lw / 2 - 4), c0[1] - LABEL_H, max(c0[2], x + lw / 2 + 4), c0[3])
+                        elif side == 'left': b = (c0[0] - lw - 10, min(c0[1], y - 12), c0[2], max(c0[3], y + 8))
+                        else: b = (c0[0], min(c0[1], y - 12), c0[2] + lw + 10, max(c0[3], y + 8))
+                    elif side != 'below': continue
+                    if b[1] < 14 or b[3] > HZ - 8: continue
+                    cost = abs(dy) / 12 + abs(dx) / 10 + extra
+                    clash = sum(area(b, o, 8) for o in keepouts) + sum(area(b, p[2], 10) for p in placed.values())
+                    if clash: near.append((clash, cost, x, y, b, side)); continue
+                    land = sum(1 for k in range(13) if b[3] > crest(b[0] + (b[2] - b[0]) * k / 12) - 14)
+                    cands.append((cost + 40 * land, x, y, b, side))
+        if cands: _, x, y, b, side = min(cands)
+        elif near: _, _, x, y, b, side = min(near)                        # no clear spot: overlap as little as possible
+        else: x = min(max(slot_x(i), 18 + w / 2), VW - 18 - w / 2); y = y0; b = craft_box(kind, x, y); side = 'below'
+        placed[i] = (x, y, b, side)
     return placed
 
 def month_label(months, i):
@@ -280,14 +291,26 @@ def make_sky_water(moment, light, sun, years):
         elif ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
         for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
-        for dx, dy, s in DUCKS:
-            uu, vv = (x - dx) / s, (y - dy) / s
-            if -36 < uu < -8 and abs(abs(vv - 2) - (-uu - 8) * .16) < .7: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
         return col, line(n + wob, clamp(t) * .9, 1 / S * 80 * .72 * max(f, .02) ** -.28 / (VH - HZ))
     return alpha_layer(fn, 0, 0, VW, VH)
 
 # ------------------------------------------------------------------ build
+def lap_css():
+    """Keyframes for the ducks' loop: right along the far side, a turn, left along the near side, a turn."""
+    pcx, pcy, prx, pry, lap = POND; frames = []
+    for k in range(25):
+        t = k / 24; a = 2 * math.pi * t
+        dx, dy = prx - prx * math.cos(a), -pry * math.sin(a)          # start at the left end, go over the top (far side)
+        face = 1 if math.sin(a) > .12 else (-1 if math.sin(a) < -.12 else math.sin(a) / .12)
+        sc = 1 - .05 * math.sin(a)                                     # a touch smaller on the far side
+        frames.append(f'{t * 100:.1f}%{{transform:translate({dx:.1f}px,{dy:.1f}px) scale({face * sc:.3f},{sc:.3f})}}')
+    return ('@keyframes lap{' + ''.join(frames) + '}'
+            f'.lap{{transform-box:fill-box;transform-origin:center;animation:lap {lap}s linear infinite}}'
+            '@keyframes dabble{0%,100%{transform:rotate(0)}8%{transform:rotate(-7deg) translateY(.6px)}14%{transform:rotate(0)}}'
+            '.dabble{transform-box:fill-box;transform-origin:50% 85%;animation:dabble 6.5s ease-in-out infinite}'
+            '@keyframes drowse{0%,100%{transform:translateY(0)}50%{transform:translateY(1.2px)}}.drowse{animation:drowse 4s ease-in-out infinite}')
+
 MOTION_CSS = """
 @keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(-14px,2px)}}
 @keyframes bob{0%,100%{transform:translate(0,0)}50%{transform:translate(0,-6px)}}
@@ -303,7 +326,7 @@ MOTION_CSS = """
 .spin-x{animation:spinx .32s linear infinite}.spin-y{animation:spiny .28s linear infinite}.spin{animation:spin .6s linear infinite}
 .sway{animation:sway 7s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}
 .ring{transform-box:fill-box;transform-origin:center;animation:ripple 9s ease-out infinite;opacity:0}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}}
 """
 
 def build(moment, days_, last):
@@ -360,7 +383,16 @@ def build(moment, days_, last):
         sizes[f'days{k}'] = len(b)
     days_svg = ''.join(sl)
     # 5. cast on the water
-    img, b = kit.raster(lambda x, y: duck_at(x, y, light), 120, 400, 310, 446); out_cast = [img]; sizes['ducks'] = len(b)
+    out_cast = []
+    if night:                                                          # asleep in a row, gently bobbing
+        img, b = kit.raster(lambda x, y: duck_at(x, y, light), 120, 400, 310, 446); out_cast.append(f'<g class="drowse">{img}</g>'); sizes['ducks'] = len(b)
+    else:                                                              # a family swimming its loop, ducklings trailing mum
+        pcx, pcy, prx, pry, lap = POND; x0 = pcx - prx; sizes['ducks'] = 0
+        for j, s_ in enumerate((1.3, 1.0, 1.0, 1.0)):
+            d = (x0, pcy, s_)
+            img, b = kit.raster(lambda x, y, d=d: duck_at(x, y, light, [d]), x0 - 38 * s_, pcy - 17 * s_, x0 + 21 * s_, pcy + 8 * s_)
+            sizes['ducks'] += len(b)
+            out_cast.append(f'<g class="lap" style="animation-delay:-{(3 - j) * DUCK_GAP + 4:.1f}s"><g class="dabble" style="animation-delay:-{j * .7:.1f}s">{img}</g></g>')
     img, b = kit.raster(lambda x, y: friend('turtle', x, y, TURTLE), TURTLE[0] - 24, TURTLE[1] - 18, TURTLE[0] + 32, TURTLE[1] + 4); out_cast.append(img)
     kx, ky, ks = KOI
     img, b = kit.raster(lambda x, y: friend('koi', x, y, KOI), kx - 36 * ks, ky - 42 * ks, kx + 28 * ks, ky + 6 * ks); sizes['koi'] = len(b)
@@ -377,7 +409,7 @@ def build(moment, days_, last):
             pw, ph = fleet.PARKED; px_, py_ = slot_x(i), HZ - ph / 2 - 1
             img, b = kit.raster(lambda x, y, px_=px_, py_=py_: fleet.parked(x - px_, y - py_, light), px_ - pw / 2 - 1, py_ - ph / 2 - 1, px_ + pw / 2 + 1, py_ + ph / 2 + 1)
             fleet_svg.append(img); micro.append((px_, HZ + 5, cap + ' · PARKED')); continue
-        x, y, _ = placed[i]; w, h = fleet.SIZE[k]; bx = craft_box(k, x, y)
+        x, y, _, side = placed[i]; w, h = fleet.SIZE[k]; bx = craft_box(k, x, y)
         img, b = kit.raster(lambda xx, yy, k=k, x=x, y=y: fleet.shade(k, xx - x, yy - y, light), bx[0] - 1, bx[1] - 1, bx[2] + 1, bx[3] + 1)
         sizes[f'fleet{i}'] = len(b); parts = []
         for p in fleet.parts(k):
@@ -388,8 +420,12 @@ def build(moment, days_, last):
         delay = f'animation-delay:-{(i * 1.9) % 11:.1f}s'
         fleet_svg.append(f'<g class="{mot or ""}" style="{delay}">{img}{"".join(parts)}</g>')
         if LABELS == 'months':
-            ly = bx[3] + 14; bgl = mix(tint[0], tint[1], clamp(ly / HZ))
-            month_labels.append(data_label(x, ly, month_label(months, i), bgl, text_ink, P))
+            lx, anchor = x, 'middle'
+            if side == 'below': ly = bx[3] + 14
+            elif side == 'above': ly = bx[1] - 6
+            else: ly = y + 6; lx, anchor = (bx[0] - 6, 'end') if side == 'left' else (bx[2] + 6, 'start')
+            bgl = mix(tint[0], tint[1], clamp(ly / HZ))
+            month_labels.append(data_label(lx, ly, month_label(months, i), bgl, text_ink, P, anchor))
             micro.append((x, ly + 5, cap))
         else:
             micro.append((x, bx[3] + 4.5, cap))
@@ -433,7 +469,7 @@ def build(moment, days_, last):
     title = (f'Jake Parker: a lake engraved from GitHub contributions, at {clock.LABEL[moment].lower()} in California. Mountains are years, '
              f'aircraft are the last 12 months, reeds are the last 365 days; the numbers are contributions.')
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {VW} {VH}" width="{VW}" height="{VH}" role="img"><title>{title}</title>'
-           f'<style>{kit.fonts()}</style><style>{MOTION_CSS}</style><defs>{defs}</defs>'
+           f'<style>{kit.fonts()}</style><style>{MOTION_CSS}{lap_css()}</style><defs>{defs}</defs>'
            f'<g clip-path="url(#{P}card)">{"".join(out)}{stars}{"".join(out_cast)}{days_svg}{"".join(fleet_svg)}{cloud_svg}</g>{words}</svg>')
     meta = dict(moment=moment, last=last.isoformat(), years=[dict(year=y, total=t, summit=[sx_, sy_]) for (y, t), (sx_, sy_) in zip(years, summits)],
                 mountains=mountains.BAND, fleet=[dict(month=m.isoformat()[:7], total=v, tier=t, kind=k) for m, v, t, k in months],

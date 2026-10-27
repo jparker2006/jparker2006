@@ -11,9 +11,9 @@ Everything below was decided with Jake in a grill on 2026-10-26. Changing any of
 
 | Scale | Thing | Rule |
 |---|---|---|
-| Years | **Mountains** on the far shore | One mountain per calendar year since the first contribution, oldest on the left. They never move. This year's grows a little every day. Summit height is linear in the year's total, one shared scale. |
+| Years | **Mountains** on the far shore | One mountain per calendar year since the first contribution, oldest on the left. They never move. This year's grows a little every day. Summit height follows the square root of the year's total on one shared scale (Jake, 2026-10-26: small years must read as hills), and every year is labeled with its exact total. |
 | Months | **A fleet of aircraft** in the sky | Rolling last 12 months, oldest on the left, the current month on the right. Each month flies one aircraft; bigger means busier. |
-| Days | **Living things** along the near shore and water | Rolling last 365 days, one per day, oldest on the left. Size is linear in that day's count. Form is to be decided from renders (plants, reeds, flowers, waves...). |
+| Days | **Wildflowers** along the near shore | Rolling last 365 days, one per day, each under its own month's aircraft. Height follows the square root of the day's count (the tallest is labeled with its exact count); busier days bloom. Flower colours are decoration only. |
 
 **The fleet**, from quietest to busiest month: paper plane, drone, helicopter, prop plane, private jet, hot air balloon,
 jet airliner, blimp, cargo airship. Each step up means **double the work**, measured against the record month (the

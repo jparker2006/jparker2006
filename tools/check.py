@@ -4,10 +4,10 @@
     python3 tools/check.py assets/art.svg [more.svg ...]      (each SVG needs the .json that world.py writes next to it)
 
 Hard gates (exit 1 if any fail):
-  years     mountain totals match the data; every summit is exactly base - amp * total / max, at its slot centre;
+  years     mountain totals match the data; every summit is exactly base - amp * sqrt(total / max), at its slot centre;
             no land inside a year's slot rises above that year's summit (checked on mountains.crest)
   fleet     the 12 rolling months match the data; each tier is 9 + ceil(log2(month / record)), each craft its tier's kind
-  days      the 365 rolling days match the data; each day's height is (base - top) * count / max, also via days.heights()
+  days      the 365 rolling days match the data; each day's height is (base - top) * sqrt(count / max), also via days.heights()
   numbers   every number printed in the art (microprint included) is a real number from the data
   text      readable labels are >= 11 px when the art is shown 830 px wide (GitHub's README width), microprint excepted
   contrast  readable labels have >= 4.5:1 contrast against the colour behind them (their data-bg)
@@ -45,7 +45,7 @@ def check(svg_path):
     band = mountains.BAND; mx = max((t for _, t in years), default=0) or 1
     w = (band['x1'] - band['x0']) / len(years)
     for i, (y, (yr, tot)) in enumerate(zip(meta['years'], years)):
-        want = (band['x0'] + (i + .5) * w, band['base'] - band['amp'] * tot / mx)
+        want = (band['x0'] + (i + .5) * w, band['base'] - band['amp'] * math.sqrt(tot / mx))   # square-root scale, labeled
         if abs(y['summit'][0] - want[0]) > 1e-6 or abs(y['summit'][1] - want[1]) > 1e-6:
             fails.append(f'years: {yr} summit {y["summit"]} != {want}')
         x0 = band['x0'] + i * w
@@ -67,9 +67,9 @@ def check(svg_path):
     counts = [c for _, c in recent]
     if meta['days']['counts'] != counts: fails.append('days: counts do not match the data')
     b = meta['days']['band']; dmax = max(counts) or 1
-    want = [(b['base'] - b['top']) * c / dmax for c in counts]
+    want = [(b['base'] - b['top']) * (c / dmax) ** .5 for c in counts]          # square-root scale, tallest labeled
     if any(abs(a - z) > 1e-9 for a, z in zip(meta['days']['heights'], want)) or any(abs(a - z) > 1e-9 for a, z in zip(daysmod.heights(recent), want)):
-        fails.append('days: heights are not linear in the counts')
+        fails.append('days: heights do not follow the square-root scale')
     # numbers
     allowed = {str(y) for y, _ in years} | {f'{t:,}' for _, t in years} | {str(t) for _, t in years}
     allowed |= {f'{v:,}' for _, v in months} | {str(v) for _, v in months} | {f'{m.year}' for m, _ in months}
