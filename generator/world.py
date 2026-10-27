@@ -18,6 +18,7 @@ HZ = mountains.BAND['base']                          # the far shore and horizon
 SLOT_X0, SLOT_X1 = 64, 1136                          # the 12 months, oldest left
 LABELS = 'months'                                    # 'none' | 'months' (a month under each aircraft) | 'key' (a key line in the art)
 LABEL_H = 18                                         # room under an aircraft for its month label
+MICROPRINT = False                                   # tiny month captions under aircraft and hangars (off: the month labels say it)
 CLOUD_SCALE = .82
 
 # ------------------------------------------------------------------ the tint plate under the engraving, per moment
@@ -427,7 +428,7 @@ def build(moment, days_, last):
         bgk = mix(tint[2], tint[3], .93)
         words += (f'<text x="64" y="488" {mono} font-size="16.5" fill="{ink_on(bgk, text_ink)}" data-bg="{hexc(bgk)}">'
                   f'MOUNTAINS = YEARS · AIRCRAFT = MONTHS · REEDS = DAYS</text>')
-    words += ''.join(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Geist Mono" font-size="3.2" fill="{text_ink}" fill-opacity=".7" '
+    if MICROPRINT: words += ''.join(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Geist Mono" font-size="3.2" fill="{text_ink}" fill-opacity=".7" '
                      f'data-micro="1" aria-hidden="true">{c}</text>' for x, y, c in micro)
     title = (f'Jake Parker: a lake engraved from GitHub contributions, at {clock.LABEL[moment].lower()} in California. Mountains are years, '
              f'aircraft are the last 12 months, reeds are the last 365 days; the numbers are contributions.')
