@@ -30,30 +30,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Draw the current moment
+      - name: Draw the current moment (wide for desktop, a taller cut for phones)
         run: |
           NOW=$(TZ=America/Los_Angeles date +%Y-%m-%dT%H:%M:%S)       # one instant for both pictures
-          echo "NOW=$NOW" >> "$GITHUB_ENV"
           python3 generator/world.py --when "$NOW" --out out/art.svg
+          python3 generator/world.py --layout phone --when "$NOW" --out out/art-phone.svg
 
-      - name: Is the picture new?
+      - name: Check both are honest and readable
+        run: python3 tools/check.py out/art.svg out/art-phone.svg
+
+      - name: Are the pictures new?
         id: new
         run: |
-          if git fetch -q origin output 2>/dev/null && git show origin/output:art.svg > /tmp/live.svg 2>/dev/null \
-             && cmp -s /tmp/live.svg out/art.svg && git cat-file -e origin/output:art-phone.jpg 2>/dev/null; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "Picture unchanged"
+          same() { git show "origin/output:$1" > "/tmp/live-$1" 2>/dev/null && cmp -s "/tmp/live-$1" "out/$1"; }
+          if git fetch -q origin output 2>/dev/null && same art.svg && same art-phone.svg && git cat-file -e origin/output:art-phone.jpg 2>/dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "Pictures unchanged"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Draw the phone picture (a taller cut with bigger labels, as a JPEG for the GitHub app)
+      - name: Phone picture as a JPEG (the format the GitHub app always shows)
         if: steps.new.outputs.changed == 'true'
-        run: |
-          python3 generator/world.py --layout phone --when "$NOW" --out out/art-phone.svg
-          tools/raster.sh out/art-phone.svg out/art-phone.jpg 720 900
-
-      - name: Check it is honest and readable
-        run: python3 tools/check.py out/art.svg $([ -f out/art-phone.svg ] && echo out/art-phone.svg)
+        run: tools/raster.sh out/art-phone.svg out/art-phone.jpg 720 900
 
       - name: Save data and README numbers (once a day, or when the code changes)
         run: |
@@ -76,7 +74,7 @@ jobs:
           git init -q -b output
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add art.svg art.json art-phone.jpg
+          git add art.svg art.json art-phone.svg art-phone.json art-phone.jpg
           git commit -q -m "Draw $(python3 -c 'import json; m = json.load(open("art.json")); print(m["moment"], m["last"])')"
           git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" output
         env:

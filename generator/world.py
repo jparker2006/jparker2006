@@ -23,7 +23,7 @@ MICROPRINT = False                                   # tiny month captions under
 # (VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI) and the pieces' bands.
 LAYOUTS = {
     'desktop': dict(
-        VW=1200, VH=500, HZ=300, SLOT=(64, 1136), DISPLAY=830, S=1.4,   # canvas (units), width shown at (px), raster px per unit
+        VW=1200, VH=500, HZ=300, SLOT=(64, 1136), DISPLAY=830, S=1.4, RX=16,   # canvas, shown width (px), px/unit, corner
         LABEL=16.5, LINES=1, LH=0, LABEL_H=18, SIDE_PAD=(12, 8),        # data labels: size, lines, line height, room under craft
         NAME=(64, 76, 34), MOMENT=(65, 102, 16.5), TITLE_BOX=(50, 40, 380, 108),
         K=1, ALT=(60, 274, 60, 274),                                    # aircraft scale; altitude map (a0, a1) -> (y0, y1)
@@ -35,7 +35,7 @@ LAYOUTS = {
         NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2),
         DY=(-132, 133, 12), DX=(-150, 151, 10), ORDER=(6, 0), REFLECT=170, NL=80, BEST_MARGIN=80, ZS=16),
     'phone': dict(
-        VW=720, VH=900, HZ=540, SLOT=(30, 690), DISPLAY=324, S=2.0,
+        VW=720, VH=900, HZ=540, SLOT=(30, 690), DISPLAY=324, S=2.0, RX=0,      # square: a JPEG has no transparent corners
         LABEL=25, LINES=2, LH=27, LABEL_H=60, SIDE_PAD=(34, 30),
         NAME=(36, 92, 56), MOMENT=(38, 130, 25), TITLE_BOX=(24, 40, 470, 142),
         K=.8, ALT=(60, 274, 178, 472),
@@ -441,7 +441,7 @@ def build(moment, days_, last):
     P = moment[:2] + '-'
     # 1. tint plate
     kind, sx, sy, sr = sun
-    defs = (f'<clipPath id="{P}card"><rect width="{VW}" height="{VH}" rx="16"/></clipPath>'
+    defs = (f'<clipPath id="{P}card"><rect width="{VW}" height="{VH}" rx="{L_["RX"]}"/></clipPath>'
             f'<filter id="{P}halo" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="1.8"/></filter>'
             f'<linearGradient id="{P}sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{hexc(tint[0])}"/><stop offset="1" stop-color="{hexc(tint[1])}"/></linearGradient>'
             f'<linearGradient id="{P}water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{hexc(tint[2])}"/><stop offset="1" stop-color="{hexc(tint[3])}"/></linearGradient>'
