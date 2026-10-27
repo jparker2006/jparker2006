@@ -5,6 +5,6 @@
 </picture>
 </p>
 
-<p align="center"><sub>Self&#8209;taught&nbsp;coder&nbsp;since&nbsp;13&nbsp;· Building&nbsp;<a href="https://github.com/jparker2006/OpenWiz">OpenWiz</a>&nbsp;· OSS&nbsp;Enthusiast&nbsp;· <a href="https://jhparker.vercel.app/">jhparker.vercel.app</a></sub></p>
+<p align="center"><sub>Self&#8209;taught&nbsp;coder&nbsp;since&nbsp;9&nbsp;· Building&nbsp;<a href="https://github.com/jparker2006/OpenWiz">OpenWiz</a>&nbsp;· OSS&nbsp;Enthusiast&nbsp;· <a href="https://jhparker.vercel.app/">jhparker.vercel.app</a></sub></p>
 
 <p align="center"><sub><em>{{QUOTE}}</em><br>Aaron&nbsp;Swartz,&nbsp;2008&nbsp;· <a href="https://archive.org/download/GuerillaOpenAccessManifesto/Goamjuly2008.pdf">Guerilla&nbsp;Open&nbsp;Access&nbsp;Manifesto</a></sub></p>
