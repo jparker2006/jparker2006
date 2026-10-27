@@ -42,7 +42,10 @@ def ink(t, ph, L, sp=2., ph2=None, base=None):
     print flips to pale lines on navy, like kit.engrave(). base = the livery colour printed under the lines."""
     t = clamp(t)
     if base: t *= PAINT_T                          # painted areas carry less ink, so the colour shows through the lines
-    if L['night']: t = (1 - t) * (PAINT_N if base else .72)
+    if L['night']:
+        if base is None and NIGHT_BODY[0]:                          # after dark the whole body glows in its livery colour
+            base = NIGHT_BODY[0]; t = (1 - t) * .56
+        else: t = (1 - t) * (PAINT_N if base else .72)
     c = cover(ph, t, sp)
     if ph2 is not None and t > .62 and not L['night']: c = max(c, cover(ph2, (t - .62) * 1.7, sp))
     return mix(base or L['paper'], L['ink'], q(clamp(c)))
@@ -56,7 +59,10 @@ def glass(L, ph, t=.86, lit=True):
     if L['night']: return L['gold'] if lit else L['paper']
     if low(L): return mix(L['gold'], L['paper'], .25)
     return ink(t, ph, L, 1.4)
-def nav(L): return L['gold'] if L['night'] else None                     # navigation lights, night only
+NAV = dict(red=(255, 96, 84), green=(96, 232, 150), white=(255, 248, 232))
+def nav(L, colour='red'):
+    """Navigation lights, night only, in real aircraft colours: red beacons, green on the starboard side we see."""
+    return NAV[colour] if L['night'] else None
 def nacelle(u0, u1, cy, R):
     """An engine pod: rounded intake lip at the front (right), tapering exhaust behind."""
     n = u1 - u0
@@ -73,8 +79,11 @@ LIVERY = dict(paper_plane=('vermilion', 'sky'), drone=('marigold', 'vermilion'),
               prop_plane=('sky', 'marigold', 'vermilion'), private_jet=('plum', 'rose'), balloon=('vermilion', 'marigold', 'sky'),
               airliner=('vermilion', 'marigold'), blimp=('leaf', 'marigold'), airship=('sky', 'marigold', 'vermilion'),
               hangar=('vermilion', 'sky'))
-PAINT_T, PAINT_N = .8, .4       # ink on painted areas by day (x tone), and the pale lines on them at night (x tone)
-def paint(kind, i, L, a=1.): return kit.pigment(LIVERY[kind][i], L, a)
+PAINT_T, PAINT_N = .8, .26      # ink on painted areas by day (x tone), and the pale lines on them at night (x tone)
+def paint(kind, i, L, a=1.):
+    if L['night']:                # lit after dark, like a night airshow: the liveries keep their colour on the navy sky
+        return mix(L['paper'], mix(kit.PIGMENTS[LIVERY[kind][i]], L['paper'], .12), a)
+    return kit.pigment(LIVERY[kind][i], L, a)
 def cream(L): return kit.pigment('cream', L)
 def band(sn, a, b): return a <= sn <= b
 def warmish(L, base, tone, ph, sp=2.2):
@@ -171,7 +180,7 @@ def drone(u, v, L):
     d = kit.box(u, v, 0, -.4, 4.6, 1.9, 1.6)
     if d < 0:
         if d > -.6: return edge(L)
-        if 4.6 > u > 2.4 and -1.6 < v < -.4 and nav(L): return nav(L)
+        if 4.6 > u > 2.4 and -1.6 < v < -.4 and nav(L): return nav(L, 'green')
         base = paint('drone', 1 if abs(v + .1) < .55 else 0, L)              # a vermilion stripe round the shell
         return ink(.06 + .7 * kit.form(u / 5, (v + .4) / 2.2, L), v, L, 1.3, base=base)
     # arms and motors
@@ -244,7 +253,7 @@ def helicopter(u, v, L):
     if c: return c
     d = kit.box(u, v, .4, -5.0, 3.6, 1.2, 1)                                 # engine fairing
     if d < 0: return edge(L) if d > -OW else ink(.1 + .5 * clamp((v + 5) / 2), v, L, 1.5, base=paint('helicopter', 0, L))
-    if nav(L) and math.hypot(u + 21, v + 8.5) < .8: return nav(L)
+    if nav(L) and math.hypot(u + 21, v + 8.5) < .8: return nav(L, 'red')
     return None
 
 # ------------------------------------------------------------------ 4. prop plane: an airmail biplane
@@ -318,7 +327,7 @@ JET_TANK = Hull(-6.6, 3.6, lambda u: 1.1 * math.sqrt(max(0., 1 - ((u + 1.5) / 5.
 def private_jet(u, v, L):
     g = JET_TANK.at(u, v)
     if g[0] < 0:
-        if nav(L) and u > 2.6: return nav(L)
+        if nav(L) and u > 2.6: return nav(L, 'green')
         return hull_ink(JET_TANK, u, v, L, g, 1.4, rimw=.6, base=paint('private_jet', 1, L))
     c = first([plate(JET_WING, lambda u, v, L: .3 + .3 * clamp((v - 2) / 4), (.33, 1), 1.5)], u, v, L)
     if c: return c
@@ -342,7 +351,7 @@ def private_jet(u, v, L):
         dd = kit.poly(u, v, pts)
         if dd < 0:
             if dd > -OW or (t is None and abs(u + 29.4 + .1 * (v + 5)) < .22): return edge(L)
-            if nav(L) and t is None and v < -8.2 and u < -30: return nav(L)
+            if nav(L) and t is None and v < -8.2 and u < -30: return nav(L, 'red')
             return ink(t * .8 if t else .1 + .24 * clamp((-2 - v) / 7), v, L, 1.5, u, paint('private_jet', 1 if t else 0, L))
     return None
 
@@ -427,7 +436,7 @@ def airliner(u, v, L):
     d = kit.poly(u, v, AL_WING)
     if d < 0:
         if d > -OW: return edge(L)
-        if nav(L) and u < -16 and v > 12: return nav(L)
+        if nav(L) and u < -16 and v > 12: return nav(L, 'green')
         if abs(-.34 * u + v - 5.4 - (-.34 * -8.6)) < .25 and v > 5: return faint(L)   # flap line
         return ink(.42 + .32 * clamp((v - 4) / 9), .32 * u + v, L, 1.8, u - .3 * v)
     d = kit.poly(u, v, AL_STAB)
@@ -439,7 +448,7 @@ def airliner(u, v, L):
         if 51 < u < 55.4 and c - 2.9 + (u - 51) * .2 < v < c - 1.4: return edge(L) if v > c - 1.8 else glass(L, u - v)   # cockpit
         if -40 < u < 47 and abs(v - c + 1.5) < .55 and (u + 60) % 2.4 < .95: return glass(L, u - v, .8)                 # windows
         if any(abs(u - x) < .2 for x in (45, 25, -36)) and abs(v - c + .5) < 3.2: return faint(L)                       # doors
-        if nav(L) and math.hypot(u - 2, v - c + 5.6) < .9: return nav(L)                                               # beacon
+        if nav(L) and math.hypot(u - 2, v - c + 5.6) < .9: return nav(L, 'red')                                               # beacon
         sn = g[3]                                                                                                       # cheatline, pinstripe
         base = paint('airliner', 0, L) if band(sn, -.56, -.06) else paint('airliner', 1, L) if band(sn, .04, .2) else None
         return hull_ink(AL, u, v, L, g, 2., k=.6, base=base)
@@ -493,7 +502,7 @@ def blimp(u, v, L):
             ph = math.asin(sn) / (math.pi / 12)
             if abs(ph - round(ph)) * r * math.pi / 12 < .3: return edge(L)
             if u > 66.4: return ink(.7, v, L, 1.4)
-        if nav(L) and u > 66.6 and abs(v - BL_C) < 1: return nav(L)
+        if nav(L) and u > 66.6 and abs(v - BL_C) < 1: return nav(L, 'white')
         base = paint('blimp', 0, L) if band(sn, -.16, .2) else paint('blimp', 1, L) if band(sn, -.25, .29) else None   # gold-edged band
         return hull_ink(BLIMP, u, v, L, g, 2.1, k=.55, base=base)
     for pts, h in ((BL_UFIN, -58.6), (BL_LFIN, -58.6)):
@@ -557,7 +566,7 @@ def airship(u, v, L):
         if d > -OW: return edge(L)
         sn, r = g[3], g[4]; phi = math.asin(sn); k = phi / (math.pi / 10)
         gap = r * math.cos(phi) * math.pi / 10                                                      # girder spacing on screen
-        if nav(L) and u > 102.6: return nav(L)
+        if nav(L) and u > 102.6: return nav(L, 'red')
         if u > 96:                                                                                  # nose cap battens
             if abs(k * 2 - round(k * 2)) * gap / 2 < .26: return edge(L)
             if u > 102.4: return ink(.5, v, L, 1.4, base=paint('airship', 0, L))
@@ -594,10 +603,18 @@ PARTS = dict(
 DRAW = dict(paper_plane=paper_plane, drone=drone, helicopter=helicopter, prop_plane=prop_plane, private_jet=private_jet,
             balloon=balloon, airliner=airliner, blimp=blimp, airship=airship)
 
+NIGHT_BODY = [None]
+NIGHT_TINT = .66                 # how strongly a craft's body takes its livery colour at night (0 = plain white-line print)
+def night_body(kind, L):
+    """The colour a craft's body glows at night: its main livery pigment, deep enough for the pale lines to read on."""
+    return mix(L['paper'], kit.PIGMENTS[LIVERY[kind][0]], NIGHT_TINT)
+
 def shade(kind, u, v, light):
     w, h = SIZE[kind]
     if abs(u) > w / 2 + .5 or abs(v) > h / 2 + .5: return None
-    return DRAW[kind](u, v, light)
+    NIGHT_BODY[0] = night_body(kind, light) if light['night'] else None
+    try: return DRAW[kind](u, v, light)
+    finally: NIGHT_BODY[0] = None
 
 def parts(kind):
     return PARTS.get(kind, [])
