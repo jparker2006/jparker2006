@@ -7,9 +7,10 @@ heights. FORM selects reeds (A), wildflowers (B), or waves (C).
 import math
 import kit
 
-BAND = dict(x0=0, x1=1200, base=500, top=432)
+BAND = dict(x0=0, x1=1200, base=500, top=400)
 SLICES = 4
 FORM = 'A'
+XMAP = None          # optional date -> x (world.py puts each day under its month's aircraft)
 
 
 def heights(days):
@@ -39,7 +40,7 @@ def _plants(days):
         seed = days[i][0].toordinal()
         r = kit.rnd(seed, 871, seed * 31)
         bend = (r - .35) * min(9, h * .21)
-        cx = x_of(i, len(days))
+        cx = XMAP(days[i][0]) if XMAP else x_of(i, len(days))
         bend = kit.clamp(bend, BAND['x0'] + .15 - cx, BAND['x1'] - .15 - cx)
         plant = (cx, h, bend, r)
         # Blades and wave shoulders can extend beyond their day's slot, but
@@ -61,8 +62,8 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
     # The upper envelope is clipped to [base-height, base], even for the
     # tiniest day. No minimum height, decorative stalk, or head above the tip.
     stem_top = 1.0
-    if h > (17 if flower else 23):
-        hh = min(4.2 if flower else 8, h * .18)
+    if h > (17 if flower else 26):
+        hh = min(4.2 if flower else 12, h * .15)
         stem_top = 1 - hh / h
         cy = base - h + hh
         tipx = _stem(cx, bend, 1 - hh / h)
@@ -80,7 +81,7 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
                     return kit.outline(light, .8)
                 return kit.engrave(kit.form(u, v, light), y + x * .4, light, sp=1.8)
         else:
-            hw = min(1.65, .8 + h * .014)
+            hw = min(2.6, 1.2 + h * .018)
             d = kit.ell(x, y, tipx, cy, hw, hh)
             if d <= 0:
                 nx, ny = (x - tipx) / hw, (y - cy) / hh
@@ -92,9 +93,9 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
                 if d > -.32:
                     return kit.outline(light, .85)
                 return kit.engrave(.3 + .65 * tone, y + .45 * nx, light, sp=1.6)
-    width = min(.55, .26 + h * .006) * (1 - .36 * t)
+    width = min(1.05, .42 + h * .011) * (1 - .4 * t)
     if t <= stem_top and abs(x - sx) < width:
-        return kit.outline(light, .86)
+        return kit.outline(light, .97)
     # Two tapered, bowed blades attached to the same root/stem, never extra
     # data plants. Their tips stay well below the main tip.
     if h > 3:
@@ -102,11 +103,11 @@ def _reed(x, y, cx, h, bend, r, light, flower=False):
             if start < t < end:
                 u = (t - start) / (end - start)
                 anchor = _stem(cx, bend, start)
-                spread = min(8, h * .25) * side
+                spread = min(10, h * .22) * side
                 bx = anchor + spread * (2 * u - u * u) + bend * .25 * u
-                blade = min(1.1, h * .027) * math.sin(math.pi * u) ** .7
+                blade = min(1.9, .35 + h * .035) * math.sin(math.pi * u) ** .7
                 if abs(x - bx) < blade:
-                    return kit.engrave(.65, (x - bx) * 2 + y * .16, light, sp=1.7) if blade > .7 else kit.outline(light, .8)
+                    return kit.engrave(.86, (x - bx) * 2 + y * .16, light, sp=1.5) if blade > .9 else kit.outline(light, .92)
     return None
 
 

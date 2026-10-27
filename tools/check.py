@@ -73,6 +73,8 @@ def check(svg_path):
     # numbers
     allowed = {str(y) for y, _ in years} | {f'{t:,}' for _, t in years} | {str(t) for _, t in years}
     allowed |= {f'{v:,}' for _, v in months} | {str(v) for _, v in months} | {f'{m.year}' for m, _ in months}
+    allowed |= {f'{m.year % 100:02d}' for m, _ in months}                      # NOV '25 ... OCT '26
+    allowed |= {str(c) for c in counts} | {f'{c:,}' for c in counts} | {str(d.day) for d, _ in recent}   # the tallest reed's label
     texts = list(root.iter(NS + 'text'))
     for t in texts:
         s = ''.join(t.itertext())
@@ -81,7 +83,7 @@ def check(svg_path):
                 fails.append(f'numbers: "{tok}" in "{s}" is not a number from the data')
     # text size and contrast
     vb = [float(v) for v in root.get('viewBox').split()]; scale = 830 / vb[2]
-    readable = [t for t in texts if t.get('data-micro') != '1']
+    readable = [t for t in texts if t.get('data-micro') != '1' and t.get('data-halo') != '1']   # halos are backing, not labels
     for t in readable:
         s = ''.join(t.itertext()); px = float(t.get('font-size', 16)) * scale
         if px < 11 - 1e-6: fails.append(f'text: "{s}" is {px:.1f} px at 830 px wide (min 11)')
