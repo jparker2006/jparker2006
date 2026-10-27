@@ -193,6 +193,37 @@ def place_fleet(months, keepouts, crest):
         placed[i] = (x, y, b, side)
     return placed
 
+def quiet_runs(months):
+    """Runs of consecutive quiet months (no contributions, so no aircraft): [(first index, last index)]."""
+    runs, i = [], 0
+    while i < len(months):
+        if months[i][3] is None:
+            j = i
+            while j + 1 < len(months) and months[j + 1][3] is None: j += 1
+            runs.append((i, j)); i = j + 1
+        else: i += 1
+    return runs
+
+def quiet_label(months, i0, i1):
+    """One label for a run of quiet months, e.g. "DEC–MAR · 0" (the year when it is the window's first or last month)."""
+    def name(i):
+        m = months[i][0]
+        return f"{data.MON[m.month]} '{m.year % 100:02d}" if i in (0, len(months) - 1) else data.MON[m.month]
+    total = sum(months[i][1] for i in range(i0, i1 + 1))
+    return (name(i0) if i0 == i1 else f'{name(i0)}\u2013{name(i1)}') + f' \u00b7 {total:,}'
+
+def quiet_spots(months, crest):
+    """Where each quiet run's label sits: in the sky over its hangars, like the other month labels, just clear of the
+    land below it. -> [(x, y, text, box)]"""
+    out = []
+    for i0, i1 in quiet_runs(months):
+        text = quiet_label(months, i0, i1); x = sum(slot_x(i) for i in range(i0, i1 + 1)) / (i1 - i0 + 1)
+        w = len(text) * (16.5 * .6 + .6)
+        land = min(crest(xx) for xx in range(int(x - w / 2) - 6, int(x + w / 2) + 7, 3))
+        y = min(land - 10, HZ - fleet.PARKED[1] - 7)
+        out.append((x, y, text, (x - w / 2 - 4, y - 15, x + w / 2 + 4, y + 5)))
+    return out
+
 def month_label(months, i):
     m, v = months[i][0], months[i][1]
     name = f"{data.MON[m.month]} '{m.year % 100:02d}" if i in (0, len(months) - 1) else data.MON[m.month]
@@ -349,6 +380,8 @@ def build(moment, days_, last):
     if sun[1] is not None:
         k_, sx_, sy_, sr_ = sun; pad = 14 if k_ == 'sun' else 0
         if k_ != 'glow': keepouts.append((sx_ - sr_ - pad, sy_ - sr_ - pad, sx_ + sr_ + pad, sy_ + sr_ + pad))
+    quiet = quiet_spots(months, crest)
+    keepouts += [box for _, _, _, box in quiet]                       # aircraft and the cloud keep clear of the quiet-month labels
     placed = place_fleet(months, keepouts, crest)
     if sun[0] == 'moon':
         mx_, my_ = place_moon([p[2] for p in placed.values()] + keepouts, sun[3]); sun = ('moon', mx_, my_, sun[3])
@@ -473,6 +506,8 @@ def build(moment, days_, last):
         bx_ = min(max(day_x(best_d), 80), VW - 80); by_ = daysmod.BAND['top'] - 8; bgr = mix(tint[2], tint[3], clamp((by_ - HZ) / (VH - HZ)))
         words += data_label(bx_, by_, f'{data.MON[best_d.month]} {best_d.day} · {best_c:,}', bgr, text_ink, P)
     words += ''.join(month_labels)
+    for qx, qy, qtext, _ in quiet:
+        words += data_label(qx, qy, qtext, mix(tint[0], tint[1], clamp(qy / HZ)), text_ink, P)
     if LABELS == 'key':
         bgk = mix(tint[2], tint[3], .93)
         words += (f'<text x="64" y="488" {mono} font-size="16.5" fill="{ink_on(bgk, text_ink)}" data-bg="{hexc(bgk)}">'
