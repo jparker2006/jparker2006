@@ -65,7 +65,7 @@ def sun_spec(moment, summits):
 DUCKS = [(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)]     # a mother and three ducklings (static layout, night)
 POND = (232, 428, 96, 11, 34)        # the ducks' loop: centre x, y, half-width, half-depth, seconds per lap
 DUCK_GAP = 2.6                       # seconds between ducks along the loop (the mother leads)
-TURTLE, KOI = (452, 388, .95), (760, 418, 1.2)
+TURTLE, KOI = (452, 391, 1.3), (760, 418, 1.2)
 
 def cloud_sdf(u, v):
     parts = [(-52, -40, 34), (6, -64, 50), (62, -36, 28)]; hw, h = 110, 56; r = h / 2
@@ -120,14 +120,14 @@ def set_friend_colours(light):
     f = friends
     if light['night']:
         f.NAVY, f.PAPER, f.WATER_INK = (6, 12, 28), (18, 34, 66), (118, 154, 206)
-        f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = (60, 54, 40), (120, 116, 100), (44, 60, 52), (96, 112, 108)
+        f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = (30, 70, 46), (84, 132, 96), (34, 76, 52), (104, 148, 112)
         f.KOI_INK, f.KOI_PAPER, f.FIN_PAPER = (170, 110, 60), (190, 160, 130), (150, 160, 182)
         f.EYE_PAPER, f.BLUSH = (190, 196, 210), (170, 110, 100)
     else:
         f.NAVY, f.PAPER, f.WATER_INK = light['ink'], light['paper'], light['ink']
-        f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = light['ink'], light['paper'], light['ink'], light['paper']
+        f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = (34, 104, 58), (150, 206, 118), (40, 118, 66), (188, 228, 150)   # a green turtle
         f.KOI_INK, f.KOI_PAPER, f.FIN_PAPER = (212, 116, 46), (252, 228, 194), light['paper']
-        f.EYE_PAPER, f.BLUSH = light['paper'], (236, 190, 160)
+        f.EYE_PAPER, f.BLUSH = (255, 255, 255), (244, 150, 150)
 
 def friend(name, x, y, anchor):
     fx, fy, s = anchor
@@ -159,6 +159,8 @@ def place_fleet(months, keepouts, crest):
     y the craft's natural altitude. Big craft are placed first; small ones dodge. Hard rules: never cover the title,
     the sun or moon, a summit, or another craft. Soft rule: stay clear of the land."""
     placed, slot = {}, (SLOT_X1 - SLOT_X0) / 12
+    hangars = [(j, slot_x(j)) for j in range(len(months)) if not months[j][3]]
+    def fixed(pl): return [(j, p[0]) for j, p in pl.items()] + hangars
     for i in sorted(range(len(months)), key=lambda i: (-months[i][2], i)):
         kind = months[i][3]
         if not kind: continue
@@ -169,7 +171,7 @@ def place_fleet(months, keepouts, crest):
             for dx in range(-150, 151, 10):
                 x = min(max(slot_x(i) + dx, 18 + w / 2), VW - 18 - w / 2); y = y0 + dy
                 # the months must still read in order: every craft stays between its neighbours' centres
-                if any((j < i and p[0] >= x - 6) or (j > i and p[0] <= x + 6) for j, p in placed.items()): continue
+                if any((j < i and px >= x - 6) or (j > i and px <= x + 6) for j, px in fixed(placed)): continue
                 c0 = craft_box(kind, x, y)
                 for side, extra in (('below', 0), ('above', 3), ('left', 5), ('right', 5)):   # where the month label goes
                     b = c0
@@ -322,9 +324,10 @@ MOTION_CSS = """
 @keyframes leap{0%,60%,100%{transform:translate(0,56px)}68%{transform:translate(-4px,0)}73%{transform:translate(-7px,-1px)}82%{transform:translate(-12px,56px)}}
 @keyframes ripple{0%,81%{opacity:0;transform:scale(.35)}85%{opacity:.9}100%{opacity:0;transform:scale(1.6)}}
 @keyframes twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes paddle{0%,100%{transform:translate(0,0)}30%{transform:translate(5px,-.6px)}60%{transform:translate(9px,.4px)}}
 .cloud{animation:drift 26s ease-in-out infinite}.bob{animation:bob 11s ease-in-out infinite}.hover{animation:hover 2.6s ease-in-out infinite}
 .spin-x{animation:spinx .32s linear infinite}.spin-y{animation:spiny .28s linear infinite}.spin{animation:spin .6s linear infinite}
-.sway{animation:sway 7s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}
+.sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}
 .ring{transform-box:fill-box;transform-origin:center;animation:ripple 9s ease-out infinite;opacity:0}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}}
 """
@@ -370,10 +373,18 @@ def build(moment, days_, last):
     img, b = kit.raster(lambda x, y: mountains.shade(x, y, years, light), 0, max(0, top), VW, HZ + 4, aa='edges'); out.append(img); sizes['mountains'] = len(b)
     # 4. days, in slices that sway; each day sits under its own month's aircraft (one time axis for both)
     m0 = months[0][0]; slot_w = (SLOT_X1 - SLOT_X0) / 12
+    anchors = [placed[i][0] if (i in placed and months[i][3]) else slot_x(i) for i in range(12)]    # where each month flies
+    ext = [anchors[0] - slot_w] + anchors + [anchors[-1] + slot_w]
+    def month_span(k):                                                  # k = -1 (the tail of the month before) .. 11
+        j = k + 1
+        lo = (ext[j - 1] + ext[j]) / 2 if j > 0 else ext[0] - slot_w / 2
+        hi = (ext[j] + ext[j + 1]) / 2 if j + 1 < len(ext) else ext[j] + slot_w / 2
+        return lo, hi
     def day_x(d):
-        k = (d.year - m0.year) * 12 + d.month - m0.month
+        k = max(-1, min(11, (d.year - m0.year) * 12 + d.month - m0.month))
         n = (datetime.date(d.year + d.month // 12, d.month % 12 + 1, 1) - datetime.date(d.year, d.month, 1)).days
-        return SLOT_X0 + (k + (d.day - .5) / n) * slot_w
+        lo, hi = month_span(k)
+        return lo + (hi - lo) * (d.day - .5) / n
     daysmod.XMAP = day_x
     B = daysmod.BAND; n = daysmod.SLICES; dt = B['top'] - 8; sl = []
     for k in range(n):
@@ -393,7 +404,9 @@ def build(moment, days_, last):
             img, b = kit.raster(lambda x, y, d=d: duck_at(x, y, light, [d]), x0 - 38 * s_, pcy - 17 * s_, x0 + 21 * s_, pcy + 8 * s_)
             sizes['ducks'] += len(b)
             out_cast.append(f'<g class="lap" style="animation-delay:-{(3 - j) * DUCK_GAP + 4:.1f}s"><g class="dabble" style="animation-delay:-{j * .7:.1f}s">{img}</g></g>')
-    img, b = kit.raster(lambda x, y: friend('turtle', x, y, TURTLE), TURTLE[0] - 24, TURTLE[1] - 18, TURTLE[0] + 32, TURTLE[1] + 4); out_cast.append(img)
+    tx, ty, ts = TURTLE; bx0, by0, bx1, by1 = friends.BBOX['turtle']
+    img, b = kit.raster(lambda x, y: friend('turtle', x, y, TURTLE), tx + bx0 * ts - 1, ty + by0 * ts - 1, tx + bx1 * ts + 1, ty + by1 * ts + 1)
+    out_cast.append(f'<g class="paddle">{img}</g>')
     kx, ky, ks = KOI
     img, b = kit.raster(lambda x, y: friend('koi', x, y, KOI), kx - 36 * ks, ky - 42 * ks, kx + 28 * ks, ky + 6 * ks); sizes['koi'] = len(b)
     ring_ink = hexc(light['ink'] if not night else light['hair'])

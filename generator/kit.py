@@ -24,6 +24,16 @@ LIGHTS = {
     'night':   dict(paper=(14, 27, 58), ink=(206, 218, 240), hair=(120, 146, 196), gold=(234, 206, 140), sun=(.5, -.86), night=True),
 }
 
+# ------------------------------------------------------------------ accent pigments (shared by the flowers and the aircraft)
+# Decoration only, never data. Neighbouring hues also differ in lightness, so they stay distinct for colourblind eyes.
+PIGMENTS = dict(vermilion=(228, 87, 46), marigold=(244, 178, 38), leaf=(76, 156, 84), sky=(78, 150, 222),
+                plum=(150, 92, 170), rose=(238, 132, 160), coral=(244, 128, 96), cream=(252, 246, 228))
+def pigment(name, light, amount=1.):
+    """A pigment as it reads in this moment's light: full by day, quieter and cooler at night."""
+    c = PIGMENTS[name]
+    if light['night']: c = mix(c, light['paper'], .45)
+    return mix(light['paper'], c, amount)
+
 # ------------------------------------------------------------------ maths
 def clamp(v, a=0., b=1.): return a if v < a else b if v > b else v
 def mix(a, b, t): return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)

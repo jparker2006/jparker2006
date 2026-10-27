@@ -63,9 +63,10 @@ def turtle(x, y):
     hx, hy = -21, -6.5
     d = math.hypot(x - hx, y - hy) - 6
     if d < 0:                                                               # head, turned to face us
-        if oval(x, y, hx - 2.3, hy - 1.1, 1.15, 1.6) or oval(x, y, hx + 2.1, hy - 1.1, 1.15, 1.6): return NAVY
+        if oval(x, y, hx - 2.75, hy - 1.75, .5, .6) or oval(x, y, hx + 1.65, hy - 1.75, .5, .6): return EYE_PAPER   # eye sparkles
+        if oval(x, y, hx - 2.3, hy - 1.1, 1.45, 1.95) or oval(x, y, hx + 2.1, hy - 1.1, 1.45, 1.95): return NAVY
         if abs(math.hypot(x - hx, y - hy + .2) - 2.5) < .5 and y > hy + 1.2: return NAVY
-        if oval(x, y, hx - 4, hy + 2, 1.3, .75) or oval(x, y, hx + 3.9, hy + 2, 1.3, .75): return mix(SKIN_PAPER, BLUSH, .75)
+        if oval(x, y, hx - 4.1, hy + 2, 1.5, .85) or oval(x, y, hx + 4, hy + 2, 1.5, .85): return mix(SKIN_PAPER, BLUSH, .85)
         return etch(d, .14 + .4 * lit(x, y, hx, hy, 6, 6), -d, SKIN_PAPER, SKIN_INK, 1.3)
     if y > .6: return None                                                  # the rest is under water
     d = cap(x, y, -12, -.5, -18.5, -4.5, 3.3)
