@@ -16,44 +16,40 @@ for (_, count), h in zip(recent, hs):
     assert h == (days.BAND['base'] - days.BAND['top']) * (count / max(c for _, c in recent)) ** .5   # square-root scale
 assert days.heights([]) == []
 zero = [(last, 0)]
-default_form = days.FORM
-for form in 'ABC':
-    days.FORM = form
+for light in kit.LIGHTS.values():
+    assert all(days.shade(x, y, zero, light) is None for x in range(0, 1200, 7) for y in range(days.BAND['top'], 501, 3))
+    assert days.shade(600, 500, [], light) is None
+# Probe each real plant directly so neighbours cannot hide a bad tip: its top sits exactly at base - height,
+# it draws ink right at that top (head, petal or bud tip) in every light, and nothing of it shows above.
+banks = days._plants(recent)
+plants = {id(p): p for _, bank in banks for p in bank}.values()
+assert len(plants) == sum(1 for h in hs if h)
+for (date, count), h in zip(recent, hs):
+    if not h:
+        continue
+    cx = days.x_of(recent.index((date, count)), len(recent))
+    p = next(p for p in plants if p['cx'] == cx)
+    assert p['h'] == h and p['top'] == days.BAND['base'] - h, (date, h)
+    tipx, tipy = days.tip(p)
+    assert tipy == days.BAND['base'] - h
     for light in kit.LIGHTS.values():
-        assert all(days.shade(x, y, zero, light) is None for x in range(0, 1200, 7) for y in range(days.BAND['top'], 501, 3))
-        assert days.shade(600, 500, [], light) is None
-    # Probe each real plant directly so neighbours cannot hide a bad tip.
-    for i, ((date, count), h) in enumerate(zip(recent, hs)):
-        if not h:
-            continue
-        # The cached primitive preserves the original common scale.
-        plants = days._plants(recent)
-        cx = days.x_of(i, len(recent))
-        p = next(p for p in plants[min(119, int(cx / 10))] if p[0] == cx)
-        _, _, bend, r = p
-        fn = (lambda x, y: days._wave(x, y, *p, kit.LIGHTS['midday'])) if form == 'C' else (
-            lambda x, y: days._reed(x, y, *p, kit.LIGHTS['midday'], flower=form == 'B'))
-        # Probe a horizontal line just inside the exact tip. Include the
-        # analytic tip coordinate so subpixel plants are not falsely missed.
-        if form == 'C':
-            width = min(10, 1.5 + h * .22)
-            tipx = kit.clamp(cx + bend * .5 + width * .32, .15, 1199.85)
-        else:
-            if form == 'B': hh = min(7.5, 1.6 + h * .085) if h > 4 else 0
-            else: hh = min(12, h * .15) if h > 26 else 0
-            tipx = days._stem(cx, bend, 1 - hh / h)
-        tipy = days.BAND['base'] - h + min(.00001, h / 100)
-        assert fn(tipx, tipy) is not None, (form, date, h)
-        for light in kit.LIGHTS.values():
-            color = (days._wave(tipx, tipy, *p, light) if form == 'C' else
-                     days._reed(tipx, tipy, *p, light, flower=form == 'B'))
-            assert color is not None and all(0 <= c <= 255 for c in color)
-    # Public entry point supplies the hard upper/lower envelope clips.
-    assert days.shade(1100, days.BAND['top'] - .0001, recent, kit.LIGHTS['midday']) is None
-    assert days.shade(1100, days.BAND['base'] + .0001, recent, kit.LIGHTS['midday']) is None
-    # Actual winter has no data; it must not sprout decorative stalks.
-    assert all(days.shade(days.x_of(i, 365), y, recent, kit.LIGHTS['midday']) is None
-               for i, (d, c) in enumerate(recent) if datetime.date(2026, 1, 1) <= d <= datetime.date(2026, 3, 31)
-               for y in (432, 460, 490, 499, 500))
-days.FORM = default_form
-print('PASS: exact square-root 365-day scale; all live tips in A/B/C; zero and empty windows; all six lights; empty winter.')
+        color = days._draw(tipx, tipy + min(.00001, h / 100), p, light)
+        assert color is not None and all(0 <= c <= 255 for c in color), (date, h, light)
+    for b in range(120):
+        for q in banks[b][1]:
+            if q is p: assert q['x0'] <= tipx <= q['x1']
+# Public entry point supplies the hard upper/lower envelope clips.
+assert days.shade(1100, days.BAND['top'] - .0001, recent, kit.LIGHTS['midday']) is None
+assert days.shade(1100, days.BAND['base'] + .0001, recent, kit.LIGHTS['midday']) is None
+# Nothing is drawn above any day's own top (shade skips a plant above its top), probed on a dense grid.
+tops = {}
+for q in plants:
+    for x in range(int(q['x0']), int(q['x1']) + 1):
+        tops[x] = min(tops.get(x, 501), q['top'])
+assert all(days.shade(x + .5, y, recent, kit.LIGHTS['midday']) is None
+           for x in range(0, 1200, 3) for y in range(days.BAND['top'], 500, 2) if y < tops.get(x, 501) - 1 and y < tops.get(x + 1, 501) - 1)
+# Actual winter has no data; it must not sprout decorative stalks.
+assert all(days.shade(days.x_of(i, 365), y, recent, kit.LIGHTS['midday']) is None
+           for i, (d, c) in enumerate(recent) if datetime.date(2026, 1, 1) <= d <= datetime.date(2026, 3, 31)
+           for y in (432, 460, 490, 499, 500))
+print('PASS: exact square-root 365-day scale; every live tip exactly at base - height in all six lights; zero and empty windows; empty winter.')
