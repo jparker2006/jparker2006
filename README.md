@@ -7,4 +7,4 @@
 
 <p align="center"><sub>Self&#8209;taught&nbsp;coder&nbsp;since&nbsp;8&nbsp;· Building&nbsp;<a href="https://github.com/jparker2006/OpenWiz">OpenWiz</a>&nbsp;· OSS&nbsp;Enthusiast&nbsp;· <a href="https://jhparker.vercel.app/">jhparker.vercel.app</a></sub></p>
 
-<p align="center"><sub><em>“Sharing isn’t immoral — it’s a moral imperative.”</em><br>Aaron&nbsp;Swartz,&nbsp;2008&nbsp;· <a href="https://archive.org/download/GuerillaOpenAccessManifesto/Goamjuly2008.pdf">Guerilla&nbsp;Open&nbsp;Access&nbsp;Manifesto</a></sub></p>
+<p align="center"><sub><em>“Only those blinded by greed would refuse to let a friend make a copy.”</em><br>Aaron&nbsp;Swartz,&nbsp;2008&nbsp;· <a href="https://archive.org/download/GuerillaOpenAccessManifesto/Goamjuly2008.pdf">Guerilla&nbsp;Open&nbsp;Access&nbsp;Manifesto</a></sub></p>
