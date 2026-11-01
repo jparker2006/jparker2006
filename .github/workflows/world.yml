@@ -54,7 +54,7 @@ jobs:
         if: steps.new.outputs.changed == 'true'
         run: tools/raster.sh out/art-phone.svg out/art-phone.jpg 720 900
 
-      - name: Save data and README numbers (once a day, or when the code changes; the quote every 4 hours)
+      - name: Save data and README numbers (once a day, or when the code changes; the quote every 7 hours)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

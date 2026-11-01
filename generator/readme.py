@@ -12,19 +12,23 @@ import clock, data
 def fmt_day(d): return f'{data.MON[d.month].title()} {d.day}, {d.year}'
 
 # Lines from Aaron Swartz's Guerilla Open Access Manifesto (2008), checked word for word against the original text.
-# The README takes turns through them every 4 hours of California time (00:00, 04:00, 08:00, ...), in this order.
+# The README takes turns through them every 7 hours, in this order. 7 doesn't divide a day, so the slots drift 3 hours
+# earlier each day and every line gets its share of daytime in California instead of one always landing at night.
 QUOTES = [
     '“Information is power. But like all power, there are those who want to keep it for themselves.”',
     '“Sharing isn’t immoral — it’s a moral imperative.”',
     '“Only those blinded by greed would refuse to let a friend make a copy.”',
 ]
-QUOTE_HOURS = 4
+QUOTE_HOURS = 7
+QUOTES_FROM = datetime.datetime(2026, 11, 1, tzinfo=clock.TZ)    # the first line's first turn
 
-def quote(when): return QUOTES[when.hour // QUOTE_HOURS % len(QUOTES)]
+def quote(when):
+    hours = (when.astimezone(datetime.timezone.utc) - QUOTES_FROM).total_seconds() // 3600
+    return QUOTES[int(hours // QUOTE_HOURS) % len(QUOTES)]
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--when'); a = ap.parse_args()
-    when = datetime.datetime.fromisoformat(a.when) if a.when else datetime.datetime.now(clock.TZ)
+    when = datetime.datetime.fromisoformat(a.when).replace(tzinfo=clock.TZ) if a.when else datetime.datetime.now(clock.TZ)
     days, last = data.load()
     years = data.years(days, last)
     fleet = data.fleet(days, last)

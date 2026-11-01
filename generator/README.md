@@ -23,12 +23,12 @@ python3 generator/clock.py                          # today's moments in Califor
 | `clock.py` | the real sun over California, the six moments, the moon's phase |
 | `mountains.py`, `fleet.py`, `days.py`, `friends.py` | the pieces: years, months, days, and the turtle and koi |
 | `fetch.py` | refreshes `data/contributions.json` from GitHub's contribution calendar |
-| `readme.py` | fills the README numbers and the quote for the current 4-hour slot |
+| `readme.py` | fills the README numbers and the quote for the current 7-hour turn |
 
 The workflow `.github/workflows/world.yml` runs every 15 minutes: it fetches the data, draws the current moment (the
 wide SVG, and when it changed, the phone cut as a JPEG), checks both, and publishes them to the `output` branch (one
 commit, replaced each time). Data and README numbers are saved to `main` once a day; the README's manifesto quote moves
-on every 4 hours of California time. Standard library Python only; output is deterministic for the same data and moment.
+on every 7 hours. Standard library Python only; output is deterministic for the same data and moment.
 
 Typefaces: [Geist and Geist Mono](https://github.com/vercel/geist-font) by Vercel, SIL Open Font License 1.1
 (`fonts/*-OFL.txt`), embedded as subsets.
