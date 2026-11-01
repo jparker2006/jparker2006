@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 """Fill README.template.md with today's numbers (the same ones the art is drawn from).
 
-    python3 generator/readme.py            # -> README.md
+    python3 generator/readme.py                        # -> README.md, quote for now in California
+    python3 generator/readme.py --when 2026-11-01T13:00:00   # quote for that California time
 """
-import datetime, os, sys
+import argparse, datetime, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
-import data
+import clock, data
 
 def fmt_day(d): return f'{data.MON[d.month].title()} {d.day}, {d.year}'
 
 # Lines from Aaron Swartz's Guerilla Open Access Manifesto (2008), checked word for word against the original text.
-# The README shows one per day, taking turns in this order (the daily refresh moves to the next one).
+# The README takes turns through them every 4 hours of California time (00:00, 04:00, 08:00, ...), in this order.
 QUOTES = [
     '“Information is power. But like all power, there are those who want to keep it for themselves.”',
     '“Sharing isn’t immoral — it’s a moral imperative.”',
     '“Only those blinded by greed would refuse to let a friend make a copy.”',
-    '“There is no justice in following unjust laws.”',
 ]
-QUOTES_FROM = datetime.date(2026, 10, 27)          # the day the first line was shown
+QUOTE_HOURS = 4
+
+def quote(when): return QUOTES[when.hour // QUOTE_HOURS % len(QUOTES)]
 
 def main():
+    ap = argparse.ArgumentParser(); ap.add_argument('--when'); a = ap.parse_args()
+    when = datetime.datetime.fromisoformat(a.when) if a.when else datetime.datetime.now(clock.TZ)
     days, last = data.load()
     years = data.years(days, last)
     fleet = data.fleet(days, last)
@@ -34,7 +38,7 @@ def main():
         'MONTH_CRAFT': data.NAMES[kind] if kind else 'still in its hangar',
         'BEST_DAY': fmt_day(best_day), 'BEST_DAY_COUNT': f'{best_count:,}',
         'UPDATED': fmt_day(last),
-        'QUOTE': QUOTES[(last - QUOTES_FROM).days % len(QUOTES)],
+        'QUOTE': quote(when),
     }
     root = os.path.dirname(HERE)
     text = open(os.path.join(root, 'README.template.md')).read()
