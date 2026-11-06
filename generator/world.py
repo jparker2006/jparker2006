@@ -32,7 +32,7 @@ LAYOUTS = {
         MOON=((180, 1120, 20), (60, 190, 10), 100, (880, 92), 50),      # x range, y range, preferred y, default, padding
         CLOUD=.82, CLOUD_AT=((150, 1060, 12), (110, 250, 6), (330, 152), (420, 150)),
         DUCKS=[(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)], POND=(232, 428, 96, 11, 34), DUCK_S=(1.3, 1.0, 1.0, 1.0),
-        NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2), BOAT=(620, 376, 1.5),
+        NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2), BOAT=(100, 376, 1.5), SAIL=(285, 64),
         DY=(-132, 133, 12), DX=(-150, 151, 10), ORDER=(6, 0), REFLECT=170, NL=80, BEST_MARGIN=80, ZS=16),
     'phone': dict(
         VW=720, VH=900, HZ=540, SLOT=(30, 690), DISPLAY=324, S=2.0, RX=0,      # square: a JPEG has no transparent corners
@@ -44,7 +44,7 @@ LAYOUTS = {
         MOON=((108, 670, 14), (110, 340, 8), 180, (530, 166), 40),
         CLOUD=.76, CLOUD_AT=((96, 624, 10), (210, 450, 6), (240, 300), (250, 300)),
         DUCKS=[(110, 704, 1.7), (168, 712, 1.3), (212, 709, 1.3), (256, 714, 1.3)], POND=(196, 704, 86, 10, 34), DUCK_S=(1.7, 1.3, 1.3, 1.3),
-        NIGHT_DUCKS=(75, 672, 290, 728), TURTLE=(470, 650, 1.7), KOI=(578, 724, 1.5), BOAT=(330, 668, 1.5),
+        NIGHT_DUCKS=(75, 672, 290, 728), TURTLE=(470, 650, 1.7), KOI=(578, 724, 1.5), BOAT=(60, 668, 1.5), SAIL=(328, 64),
         DY=(-210, 211, 14), DX=(-120, 121, 6), ORDER=(8, 30), REFLECT=300, NL=130, BEST_MARGIN=70, ZS=25),
 }
 L_ = None
@@ -111,7 +111,8 @@ def sun_spec(moment, summits):
 
 # ------------------------------------------------------------------ the cast (always there, never data)
 # DUCKS (a mother and three ducklings, the static night row), POND (their loop: centre x, y, half-width, half-depth,
-# seconds per lap), TURTLE, KOI and BOAT (x, y, scale) come from the layout.
+# seconds per lap), TURTLE, KOI and BOAT (x, y, scale; the boat's west end) come from the layout. SAIL = (how far the
+# boat sails east, seconds there and back): a lane between the year labels and the ducks, clear of the turtle.
 DUCK_GAP = 2.6                       # seconds between ducks along the loop (the mother leads)
 
 def cloud_sdf(u, v):
@@ -372,13 +373,20 @@ def make_sky_water(moment, light, sun, years):
                 elif night: t = clamp(t + (.5 - tone) * .3)
                 else: t += tone * .5 * (1 - f * .6)
         if ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
-        for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3), (BOAT, 17, 2.4)):
+        for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
         return col, line(n + wob, clamp(t) * .9, 1 / S * L_['NL'] * .72 * max(f, .02) ** -.28 / (VH - HZ))
     return alpha_layer(fn, 0, 0, VW, VH)
 
 # ------------------------------------------------------------------ build
+def sail_css():
+    """The sailboat's crossing: east along its lane, a slow turn, back west, a turn (the main movement on the water)."""
+    d, secs = L_['SAIL']
+    return ('@keyframes sail{0%{transform:translate(0,0) scaleX(1)}44%{transform:translate(' + f'{d}' + 'px,0) scaleX(1)}'
+            '50%{transform:translate(' + f'{d}' + 'px,0) scaleX(-1)}94%{transform:translate(0,0) scaleX(-1)}100%{transform:translate(0,0) scaleX(1)}}'
+            f'.sail{{transform-box:fill-box;transform-origin:center;animation:sail {secs}s ease-in-out infinite}}')
+
 def lap_css():
     """Keyframes for the ducks' loop: right along the far side, a turn, left along the near side, a turn."""
     pcx, pcy, prx, pry, lap = POND; frames = []
@@ -411,7 +419,7 @@ MOTION_CSS = """
 .spin-x{animation:spinx .32s linear infinite}.spin-y{animation:spiny .28s linear infinite}.spin{animation:spin .6s linear infinite}
 .sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}.rock{animation:rock 6s ease-in-out infinite}
 .ring{transform-box:fill-box;transform-origin:center;animation:ripple 9s ease-out infinite;opacity:0}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}.sail{transform:none}}
 """
 
 def build(moment, days_, last):
@@ -477,8 +485,11 @@ def build(moment, days_, last):
         sl.append(f'<g class="sway" style="transform-origin:{(x0 + x1) / 2:.1f}px {B["base"]}px;animation-delay:-{k * 1.7:.1f}s">{img}</g>')
         sizes[f'days{k}'] = len(b)
     days_svg = ''.join(sl)
-    # 5. cast on the water
+    # 5. cast on the water (the sailboat first: it is the farthest out, so the ducks pass in front of it)
     out_cast = []
+    bx_, by_, bs_ = BOAT; bb = friends.BBOX['boat']
+    img, b = kit.raster(lambda x, y: friend('boat', x, y, BOAT), bx_ + bb[0] * bs_ - 1, by_ + bb[1] * bs_ - 1, bx_ + bb[2] * bs_ + 1, by_ + bb[3] * bs_ + 1); sizes['boat'] = len(b)
+    out_cast.append(f'<g class="sail"><g class="rock" style="transform-origin:{bx_:.1f}px {by_:.1f}px">{img}</g></g>')
     if night:                                                          # asleep in a row, gently bobbing
         img, b = kit.raster(lambda x, y: duck_at(x, y, light), *L_['NIGHT_DUCKS']); out_cast.append(f'<g class="drowse">{img}</g>'); sizes['ducks'] = len(b)
     else:                                                              # a family swimming its loop, ducklings trailing mum
@@ -491,9 +502,6 @@ def build(moment, days_, last):
     tx, ty, ts = TURTLE; bx0, by0, bx1, by1 = friends.BBOX['turtle']
     img, b = kit.raster(lambda x, y: friend('turtle', x, y, TURTLE), tx + bx0 * ts - 1, ty + by0 * ts - 1, tx + bx1 * ts + 1, ty + by1 * ts + 1)
     out_cast.append(f'<g class="paddle">{img}</g>')
-    bx_, by_, bs_ = BOAT; bb = friends.BBOX['boat']
-    img, b = kit.raster(lambda x, y: friend('boat', x, y, BOAT), bx_ + bb[0] * bs_ - 1, by_ + bb[1] * bs_ - 1, bx_ + bb[2] * bs_ + 1, by_ + bb[3] * bs_ + 1); sizes['boat'] = len(b)
-    out_cast.append(f'<g class="rock" style="transform-origin:{bx_:.1f}px {by_:.1f}px">{img}</g>')
     kx, ky, ks = KOI
     img, b = kit.raster(lambda x, y: friend('koi', x, y, KOI), kx - 36 * ks, ky - 42 * ks, kx + 28 * ks, ky + 6 * ks); sizes['koi'] = len(b)
     ring_ink = hexc(light['ink'] if not night else light['hair'])
@@ -575,7 +583,7 @@ def build(moment, days_, last):
     title = (f'Jake Parker: a lake engraved from GitHub contributions, at {clock.LABEL[moment].lower()} in California. Mountains are years, '
              f'aircraft are the last 12 months, flowers are the last 365 days; the numbers are contributions.')
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {VW} {VH}" width="{VW}" height="{VH}" role="img"><title>{title}</title>'
-           f'<style>{kit.fonts()}</style><style>{MOTION_CSS}{lap_css()}</style><defs>{defs}</defs>'
+           f'<style>{kit.fonts()}</style><style>{MOTION_CSS}{lap_css()}{sail_css()}</style><defs>{defs}</defs>'
            f'<g clip-path="url(#{P}card)">{"".join(out)}{stars}{"".join(out_cast)}{days_svg}{"".join(fleet_svg)}{cloud_svg}</g>{words}</svg>')
     meta = dict(moment=moment, last=last.isoformat(), years=[dict(year=y, total=t, summit=[sx_, sy_]) for (y, t), (sx_, sy_) in zip(years, summits)],
                 mountains=mountains.BAND, fleet=[dict(month=m.isoformat()[:7], total=v, tier=t, kind=k) for m, v, t, k in months],

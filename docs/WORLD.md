@@ -24,8 +24,8 @@ They fly **time across, at natural height**: x follows the month order, y follow
 drones skim the water, helicopters and prop planes fly low, jets and airships cruise high). Big ones pass over small ones.
 
 **Always there (the cast, not data):** the round smiling cloud (perfect geometric cloud shape, a cute face), rubber ducks
-(a mother and ducklings), a turtle, a koi, and a little sailboat that rocks in the middle of the lake (a lantern on its
-mast after dark). Hot air balloons are no longer decoration, because a balloon now means a month.
+(a mother and ducklings), a turtle, a koi, and a little sailboat that sails back and forth across the lake, rocking as it
+goes (a lantern on its mast after dark): the main movement on the water. Hot air balloons are no longer decoration, because a balloon now means a month.
 
 ## 2. Time of day
 
