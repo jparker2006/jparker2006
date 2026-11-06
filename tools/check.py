@@ -6,7 +6,7 @@
 Hard gates (exit 1 if any fail):
   years     mountain totals match the data; every summit is exactly base - amp * sqrt(total / max), at its slot centre;
             no land inside a year's slot rises above that year's summit (checked on mountains.crest)
-  fleet     the 12 rolling months match the data; each tier is 9 + ceil(log2(month / record)), each craft its tier's kind
+  fleet     the 12 rolling months match the data; each tier is 9 + ceil(log2(month / record)), the record month 10, each craft its tier's kind
   days      the 365 rolling days match the data; each day's height is (base - top) * sqrt(count / max), also via days.heights()
   numbers   every number printed in the art (microprint included) is a real number from the data
   text      readable labels are >= 11 px at the width the art is shown (830 px desktop README, 324 px phone), microprint excepted
@@ -62,7 +62,7 @@ def check(svg_path):
         fails.append('fleet: months do not match the data')
     for f in meta['fleet']:
         t = f['tier']; v = f['total']
-        want = 0 if v <= 0 else max(1, min(9, 9 + math.ceil(math.log2(v / rec) - 1e-12)))
+        want = 0 if v <= 0 else 10 if v >= rec else max(1, min(9, 9 + math.ceil(math.log2(v / rec) - 1e-12)))
         if t != want: fails.append(f'fleet: {f["month"]} tier {t} != {want}')
         if f['kind'] != (data.KINDS[t - 1] if t else None): fails.append(f'fleet: {f["month"]} flies {f["kind"]} for tier {t}')
     # days

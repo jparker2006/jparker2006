@@ -24,10 +24,10 @@ from kit import clamp, mix, line, q, S
 from data import KINDS
 
 SIZE = dict(paper_plane=(18, 8), drone=(24, 12), helicopter=(44, 20), prop_plane=(54, 23), private_jet=(70, 18),
-            balloon=(40, 56), airliner=(120, 34), blimp=(140, 40), airship=(210, 56))
+            balloon=(40, 56), airliner=(120, 34), blimp=(140, 40), airship=(210, 56), carrier=(234, 67))
 ALTITUDE = dict(paper_plane=274, drone=252, helicopter=230, prop_plane=210, balloon=196, blimp=150, private_jet=118,
-                airliner=84, airship=60)
-MOTION = dict(drone='hover', balloon='bob', blimp='bob', airship='bob')
+                airliner=84, airship=60, carrier=58)
+MOTION = dict(drone='hover', balloon='bob', blimp='bob', airship='bob', carrier='bob')
 PARKED = (22, 11)
 OW = .8                                            # outline width (units)
 
@@ -78,6 +78,7 @@ def nacelle(u0, u1, cy, R):
 LIVERY = dict(paper_plane=('vermilion', 'sky'), drone=('marigold', 'vermilion'), helicopter=('coral', 'cream'),
               prop_plane=('sky', 'marigold', 'vermilion'), private_jet=('plum', 'rose'), balloon=('vermilion', 'marigold', 'sky'),
               airliner=('vermilion', 'marigold'), blimp=('leaf', 'marigold'), airship=('sky', 'marigold', 'vermilion'),
+              carrier=('plum', 'marigold', 'vermilion'),
               hangar=('vermilion', 'sky'))
 PAINT_T, PAINT_N = .8, .26      # ink on painted areas by day (x tone), and the pale lines on them at night (x tone)
 def paint(kind, i, L, a=1.):
@@ -589,6 +590,114 @@ def airship(u, v, L):
         if c: return c
     return None
 
+# ------------------------------------------------------------------ 10. sky carrier: a rigid giant with a flight deck on its back
+# Drawn in its own 260-unit frame and shown at CK scale, so two of them still fit side by side on the phone.
+CK = .9
+CA_C = 0.
+def _ca_r(u):
+    if u > 86: return 21 * math.sqrt(max(0., 1 - ((u - 86) / 42) ** 2))
+    if u > -40: return 21
+    t = (-40 - u) / 88; return 21 * max(0., 1 - t ** 1.8) ** .72
+CARRIER = Hull(-128, 128, _ca_r, lambda u: CA_C)
+CA_DECK = (-88, 98, -26.2, -23.8)                   # flight deck: u0, u1, top, bottom
+CA_UFIN = [(-76, _top(CARRIER, -76) + 1.6), (-98, -33.4), (-117, -33.4), (-122, _top(CARRIER, -122) + .6)]
+CA_LFIN = [(-76, _bot(CARRIER, -76) - 1.6), (-98, 31.4), (-117, 31.4), (-122, _bot(CARRIER, -122) - .6)]
+CA_SFIN = [(-78, CA_C + 1.4), (-100, CA_C + 10.4), (-119, CA_C + 10.2), (-124, CA_C + .9)]
+CA_BRIDGE = Hull(62, 92, lambda u: 3.4 * max(0., 1 - clamp((68 - u) / 6) ** 2) ** .5 * max(0., 1 - clamp((u - 86) / 6) ** 2) ** .5, lambda u: 22.4)
+CA_PODS = [Hull(c0, c0 + 12, lambda u, c0=c0: 2.4 * math.sqrt(max(0., 1 - ((u - c0 - 7) / (5 if u > c0 + 7 else 7)) ** 2)), lambda u: 25.6)
+           for c0 in (30, -12, -54)]
+CA_STRUTS = ([wire(c0 + 6, 19.4, c0 + 7.6, 23.4, .5) for c0 in (30, -12, -54)] + [wire(c0 + 2.4, 19.8, c0 + 5.2, 23.6, .34) for c0 in (30, -12, -54)]
+             + [wire(x, -23.8, x, _top(CARRIER, x) + .6, .42) for x in range(-80, 96, 16)])
+CA_BANDS = (-114, -106, -100, -94, -88)             # the banded tail: plum, marigold, plum, marigold
+CA_ISLAND = (78, -29.8, 5, 3.6)                     # the deck's control island: centre, half sizes
+CA_PLANES = (-58, 4)                                # two little biplanes parked on deck (centre u)
+def ca_band(u, L):
+    for i in range(4):
+        if CA_BANDS[i] <= u < CA_BANDS[i + 1]: return paint('carrier', i % 2, L)
+    return None
+def ca_fin(u, v, L, rudder): return ca_band(u, L) or (paint('carrier', 0, L) if rudder else cream(L))
+def deck_plane(u, v, L):
+    """A little biplane parked on the deck, nose right; wheels on the deck top (v = 0 here)."""
+    if math.hypot(u - 3.6, v + 1.1) < 1.1: return edge(L)                                       # wheel
+    if kit.cap(u, v, 3.6, -1.1, 4.4, -3.4, .32) < 0 or kit.cap(u, v, -8.4, -.4, -9, -2.6, .3) < 0: return edge(L)   # gear, tailskid
+    if kit.cap(u, v, 1.4, -8.2, 1.8, -4, .3) < 0 or kit.cap(u, v, 5, -8.2, 5.2, -4, .3) < 0: return edge(L)       # struts
+    d = kit.cap(u, v, -1.4, -8.6, 7.4, -8.6, .9)                                                 # top wing
+    if d < 0: return edge(L) if d > -.5 else ink(.15, v, L, 1.2, base=paint('carrier', 1, L))
+    d = kit.poly(u, v, [(-9.6, -3), (-6.2, -3.6), (-7, -7.8), (-9.4, -8)])                          # fin
+    if d < 0: return edge(L) if d > -.5 else ink(.2, v, L, 1.2, base=paint('carrier', 2, L))
+    d = kit.smin(kit.cap(u, v, -9, -3.2, 6.6, -4.2, 1.6), kit.ell(u, v, 7, -4.2, 1.8, 1.9), .8)     # fuselage and cowling
+    if d < 0:
+        if d > -.5 or abs(u - 5.4) < .25: return edge(L)
+        if -1.2 < u < 1.6 and v < -5.2: return ink(.85, u, L, 1.1)                              # cockpit
+        return ink(.08 + .7 * clamp((v + 3.8) / 2.4), u * .2 + v, L, 1.3, base=paint('carrier', 2, L))
+    if abs(u - 9.1) < .45 and abs(v + 4.2) < 3: return faint(L)                                 # propeller, at rest
+    return None
+def carrier(u, v, L): return _carrier(u / CK, v / CK, L)
+def _carrier(u, v, L):
+    # flight deck furniture: two little biplanes and the control island
+    if v < CA_DECK[2]:
+        for c0 in CA_PLANES:
+            if abs(u - c0) < 11:
+                c = deck_plane(u - c0, v - CA_DECK[2], L)
+                if c: return c
+        d = kit.box(u, v, *CA_ISLAND, .6)
+        if d < 0:
+            if d > -OW: return edge(L)
+            x, y = u - CA_ISLAND[0], v - CA_ISLAND[1]
+            if y < -1.4 and abs(x) < 3.8: return edge(L) if (x + 3.8) % 1.9 < .45 else glass(L, u - v)   # bridge windows
+            return ink(.1 + .6 * kit.form(x / 5, 0, L), v, L, 1.4, base=paint('carrier', 0, L))
+        if kit.cap(u, v, CA_ISLAND[0] + 2, -33.4, CA_ISLAND[0] + 2, -35.4, .28) < 0: return edge(L)    # mast
+        if nav(L) and math.hypot(u - CA_ISLAND[0] - 2, v + 35.4) < .8: return nav(L, 'red')
+    # the deck itself: a planked strip with a dashed centre line
+    if CA_DECK[0] <= u <= CA_DECK[1] and CA_DECK[2] <= v <= CA_DECK[3]:
+        if v - CA_DECK[2] < OW or CA_DECK[3] - v < OW * .7 or u - CA_DECK[0] < OW or CA_DECK[1] - u < OW: return edge(L)
+        if abs(v - (CA_DECK[2] + CA_DECK[3]) / 2) < .3 and (u % 6) < 3.4: return cream(L) if not L['night'] else L['gold']
+        return ink(.55, u * .15 + v, L, 1.3, base=paint('carrier', 1, L))
+    c = first(CA_STRUTS, u, v, L)
+    if c: return c
+    for H in CA_PODS:
+        g = H.at(u, v)
+        if g[0] < 0:
+            if g[0] > -OW or abs(u - H.u0 - 3.6) < .2: return edge(L)
+            return hull_ink(H, u, v, L, g, 1.5, rimw=.7, base=paint('carrier', 1, L))
+    g = CA_BRIDGE.at(u, v)
+    if g[0] < 0:
+        if g[0] > -OW: return edge(L)
+        if 69 < u < 89 and 20.4 < v < 23:
+            if (u - 69) % 2.5 < .55 or v > 22.5: return edge(L)
+            return glass(L, u - v)
+        return hull_ink(CA_BRIDGE, u, v, L, g, 1.4, rimw=.6, base=paint('carrier', 0, L))
+    c = fin_ink(CA_SFIN, -112, u, v, L, .45, ca_fin)
+    if c: return c
+    g = CARRIER.at(u, v); d = g[0]
+    if d < 0:
+        if d > -OW: return edge(L)
+        sn, r = g[3], g[4]; phi = math.asin(sn); k = phi / (math.pi / 10)
+        gap = r * math.cos(phi) * math.pi / 10
+        if nav(L) and u > 126.6: return nav(L, 'white')
+        if u > 118:                                                                                 # nose cap battens
+            if abs(k * 2 - round(k * 2)) * gap / 2 < .26: return edge(L)
+            if u > 126.2: return ink(.5, v, L, 1.4, base=paint('carrier', 1, L))
+        if d > -OW - 1.4 and rim(L, g[1], g[2]): return kit.warm(.7, u, L)
+        pk = (math.floor(k) + .5) * math.pi / 10                                                    # flat fabric panels
+        nx = g[1]; ny = math.sin(pk) * math.sqrt(max(0., 1 - nx * nx))
+        t = .05 + .88 * kit.form(nx, ny, L)
+        uu = u - 2.4 * math.cos(phi)
+        base = ca_band(uu, L)
+        if u > 118 or (-88 <= uu and band(sn, .02, .2)): base = paint('carrier', 0, L)             # nose cap, plum cheatline
+        elif -88 <= uu and band(sn, .2, .27): base = paint('carrier', 1, L)                        # with a gold pinstripe
+        if base: return ink(t, along(CARRIER, sn, r, .6), L, 2.2, u * .6 + v * .8, base)
+        frame = clamp((kit.form(g[1], g[2], L) - .12) * 3)
+        if frame > 0:
+            if abs(k - round(k)) * gap < .2 and gap > 2.6 and abs(round(k)) < 5: return mix(L['paper'], L['ink'], q(.35 + .45 * frame))   # girders
+            fr = uu / 12
+            if abs(fr - round(fr)) * 12 < .22 and -118 < u < 114 and abs(sn) < .97: return mix(L['paper'], L['ink'], q(.3 + .4 * frame))  # rings
+        return ink(t, along(CARRIER, sn, r, .6), L, 2.2, u * .6 + v * .8)
+    for pts, h in ((CA_UFIN, -112), (CA_LFIN, -112)):
+        c = fin_ink(pts, h, u, v, L, paint=ca_fin)
+        if c: return c
+    return None
+
 # ------------------------------------------------------------------ moving parts
 PARTS = dict(
     drone=[dict(name='rotor-aft', box=(-13, -6, -5, -3.6), pivot=(-9, -4.6), motion='spin-x', shade=rotor_part(-9, -4.6, 3.8, .36, .5)),
@@ -599,9 +708,11 @@ PARTS = dict(
     blimp=[dict(name='propeller', box=(-2.6, 10, 0, 19.2), pivot=(-1.3, 14.6), motion='spin-y', shade=prop_part(-1.3, 14.6, 4.2, .5))],
     airship=[dict(name=f'propeller{i}', box=(c0 - 1.6, 11.6, c0 + 1, 21.2), pivot=(c0 - .3, 16.4), motion='spin-y', shade=prop_part(c0 - .3, 16.4, 4.6, .55))
              for i, c0 in enumerate((26, -46))],
+    carrier=[dict(name=f'propeller{i}', box=((c0 - 1.8) * CK, 20 * CK, (c0 + 1.2) * CK, 31.2 * CK), pivot=((c0 - .3) * CK, 25.6 * CK), motion='spin-y',
+                  shade=prop_part((c0 - .3) * CK, 25.6 * CK, 5.2 * CK, .6 * CK)) for i, c0 in enumerate((30, -12, -54))],
 )
 DRAW = dict(paper_plane=paper_plane, drone=drone, helicopter=helicopter, prop_plane=prop_plane, private_jet=private_jet,
-            balloon=balloon, airliner=airliner, blimp=blimp, airship=airship)
+            balloon=balloon, airliner=airliner, blimp=blimp, airship=airship, carrier=carrier)
 
 NIGHT_BODY = [None]
 NIGHT_TINT = .66                 # how strongly a craft's body takes its livery colour at night (0 = plain white-line print)

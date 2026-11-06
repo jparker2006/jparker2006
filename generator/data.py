@@ -5,14 +5,16 @@
 - Months are a fleet: the rolling last 12 months (the newest is the current, partial month). Each month flies one
   aircraft. Each step up the fleet means double the work, measured against the record month:
       tier = 9 + ceil(log2(month / record)), clamped to 1..9; a month with no contributions flies nothing (parked).
+  The record month itself (the biggest ever) flies tier 10, the sky carrier, so there is only ever one in the sky.
 - Days are living things on the shore: the rolling last 365 days, one per day, size linear in that day's count.
 """
 import datetime, json, math, os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KINDS = ('paper_plane', 'drone', 'helicopter', 'prop_plane', 'private_jet', 'balloon', 'airliner', 'blimp', 'airship')
+KINDS = ('paper_plane', 'drone', 'helicopter', 'prop_plane', 'private_jet', 'balloon', 'airliner', 'blimp', 'airship', 'carrier')
 NAMES = dict(paper_plane='paper plane', drone='drone', helicopter='helicopter', prop_plane='prop plane',
-             private_jet='private jet', balloon='hot air balloon', airliner='jet airliner', blimp='blimp', airship='cargo airship')
+             private_jet='private jet', balloon='hot air balloon', airliner='jet airliner', blimp='blimp', airship='cargo airship',
+             carrier='sky carrier')
 MON = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 def load(path=None):
@@ -45,8 +47,9 @@ def record_month(days):
     return max(totals.values(), default=0)
 
 def tier(v, record):
-    """0 (parked) .. 9 (cargo airship). Each step up = double the work."""
+    """0 (parked) .. 9 (cargo airship), each step down = half the work; 10 (sky carrier) = the record month."""
     if v <= 0 or record <= 0: return 0
+    if v >= record: return 10
     return max(1, min(9, 9 + math.ceil(math.log2(v / record) - 1e-12)))
 
 def kind(v, record):

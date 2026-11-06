@@ -122,8 +122,8 @@ def main():
                       830 * len(ms), 346, out, scale=1.5)
             return out
         pair(('midday', 'golden'), os.path.join(OUT, 'row-day.png')); pair(('night', 'dusk'), os.path.join(OUT, 'row-night.png'))
-        items = [('1 · Lineup, midday (2x README scale)', 'all nine at true relative size; Stearman-blue biplane, airmail paper plane, '
-                  'red-and-gold airliner, green-band blimp, blue-and-gold banded airship with a red container', lineup_svg('midday', scale_w=W2)),
+        items = [('1 · Lineup, midday (2x README scale)', 'all ten at true relative size; Stearman-blue biplane, airmail paper plane, '
+                  'red-and-gold airliner, green-band blimp, blue-and-gold banded airship with a red container, plum-and-gold sky carrier', lineup_svg('midday', scale_w=W2)),
                  ('1b · Lineup, night (2x)', 'white-line print; liveries quieted by kit.pigment, gold = cabin, nav lights, burner', lineup_svg('night', scale_w=W2)),
                  ('1c · Lineups at real size (830 px canvas: 1 unit = 0.69 px), midday and night', 'what the README shows',
                   side([lineup_svg('midday', scale_w=1200, captions=False), lineup_svg('night', scale_w=1200, captions=False)], 0)),

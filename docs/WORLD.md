@@ -16,8 +16,9 @@ Everything below was decided with Jake in a grill on 2026-10-26. Changing any of
 | Days | **Wildflowers** along the near shore | Rolling last 365 days, one per day, each under its own month's aircraft. Height follows the square root of the day's count (the tallest is labeled with its exact count); busier days bloom. A hand-coloured engraved meadow (daisies, round flowers, tulips, buds); only the busiest 10% of days get the cloud's smiling face, and they sleep at night. Flower colours are decoration only. |
 
 **The fleet**, from quietest to busiest month: paper plane, drone, helicopter, prop plane, private jet, hot air balloon,
-jet airliner, blimp, cargo airship. Each step up means **double the work**, measured against the record month (the
-biggest month ever, currently Oct 2026 = 2,621): `tier = 9 + ceil(log2(month / record))`, clamped to 1..9. A month with no
+jet airliner, blimp, cargo airship, and above them all the **sky carrier** (a rigid giant with biplanes parked on its
+flight deck), flown only by the record month (the biggest month ever, currently Oct 2026 = 3,703). Every other month
+steps down by **double the work** from the record: `tier = 9 + ceil(log2(month / record))`, clamped to 1..9. A month with no
 contributions flies nothing; it stays parked on the ground. Big craft must *look* big: each type has its own natural size.
 They fly **time across, at natural height**: x follows the month order, y follows the kind of craft (paper planes and
 drones skim the water, helicopters and prop planes fly low, jets and airships cruise high). Big ones pass over small ones.
@@ -101,7 +102,7 @@ Month captions are **microprint** (readable only when zoomed). Every number goes
 | `generator/data.py` | the data rules above | orchestrator |
 | `generator/clock.py` | LA sun, moments, moon | orchestrator |
 | `generator/world.py` | composition, tint plate, sky, water, sun/moon, cast, text, motion, SVG | orchestrator |
-| `generator/fleet.py` | the nine aircraft (sprites, moving parts, parked look) | fleet artist |
+| `generator/fleet.py` | the ten aircraft (sprites, moving parts, parked look) | fleet artist |
 | `generator/days.py` | the days along the shore | days artist |
 | `generator/mountains.py` | the year mountains | mountains artist |
 
