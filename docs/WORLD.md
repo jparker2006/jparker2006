@@ -35,7 +35,7 @@ For example, golden hour lands at the real sunset (6:06 pm on 2026-10-26, 4:43 p
 
 ## 3. The look
 
-- **One cobalt ink on cream paper**, plus **gold for warm light only** (the sun and its path on the water, the ducks,
+- **One cobalt ink on cream paper**, plus **gold for warm light only** (the sun, the ducks,
   a balloon burner, warm rims). References: Praveen's textured shader (`/tmp/refs2/p*.jpg`), uisabor's engravings
   (`/tmp/refs3/s*.jpg`), unseen's lake paintings (`/tmp/refs4/u*.jpg`: hills built from rounded tree crowns, mirror-still
   water, a lone rower, one warm accent; `u4` is almost exactly our palette), and the engraved **airmail stamps of the 1920s
@@ -60,7 +60,7 @@ y   0 ┌───────────────────────�
       │      fleet: x = month order, y = natural height of the craft │
       │      (airship ~70, airliner ~95, ... drone ~245, paper ~270) │
  300  ├──── far shore: mountains (years), base y = 300 ─────────────┤
-      │   water: reflections, sun path, ducks, turtle, koi           │
+      │   water: reflections, ducks, turtle, koi                     │
  430  │   near shore / shallows: the days (strip y 430..500)         │
  500  └──────────────────────────────────────────────────────────────┘
 ```

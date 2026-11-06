@@ -355,9 +355,9 @@ def make_sky_water(moment, light, sun, years):
                 if ray > c: c, col = ray, mix(hair, gold, .6)
             if abs(y - (HZ - .6)) < .5: c, col = max(c, .5), ink                 # the far shore line
             return col, c
-        # water: perspective lines, the land's broken reflection, the sun's (or moon's) path, stillness
-        f = (y - HZ) / (VH - HZ); gx = abs(x - sx); gw = 12 + (y - HZ) * .3
-        t = (.06 + .05 * f) if night else (.06 + .17 * f ** 1.2) * (1 - .55 * math.exp(-gx / (gw * 2.2)))
+        # water: perspective lines, the land's broken reflection, stillness (no sun or moon path: Jake, 2026-11-06)
+        f = (y - HZ) / (VH - HZ)
+        t = (.06 + .05 * f) if night else (.06 + .17 * f ** 1.2)
         col = ink if not night else hair
         n = L_['NL'] * f ** .72; L = int(math.floor(n + .5))
         broken = ((int(y * 1.3) * 2654435761 + int(x / 13 + 3 * math.sin(y * .7)) * 40503) >> 7) % 7 > 1
@@ -369,9 +369,7 @@ def make_sky_water(moment, light, sun, years):
                 if rk == 'rim': col, t = gold, max(t, .45)
                 elif night: t = clamp(t + (.5 - tone) * .3)
                 else: t += tone * .5 * (1 - f * .6)
-        if kind in ('sun', 'glow', 'moon') and gx < gw and ((L * 2654435761 + int((x + L * 5) / 9) * 40503) >> 6) % 5 > 1:
-            t, col = .5 * (1 - gx / gw) + .14, (gold if kind != 'moon' else (226, 222, 200))
-        elif ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
+        if ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
         for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
