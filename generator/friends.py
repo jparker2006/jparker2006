@@ -1,4 +1,4 @@
-"""Engraved lake friends: a turtle and a leaping koi (shapes from design round 3, variant B).
+"""Engraved lake friends: a turtle, a leaping koi (shapes from design round 3, variant B) and a little sailboat.
 
 Each function takes local coordinates (units, waterline at y = 0) and returns an RGB colour or None.
 """
@@ -8,8 +8,9 @@ NAVY, PAPER, WATER_INK = (25, 47, 88), (243, 238, 226), (24, 66, 104)
 SHELL_INK, SHELL_PAPER = (118, 84, 34), (238, 216, 164); SKIN_INK, SKIN_PAPER = (78, 112, 70), (220, 230, 186)
 KOI_INK, KOI_PAPER = (212, 116, 46), (252, 228, 194); FIN_PAPER = (247, 245, 238)
 EYE_PAPER, BLUSH = (251, 249, 240), (236, 150, 130)
+HULL_INK, HULL_PAPER, SAIL_PAPER, STRIPE, LANTERN = (126, 54, 34), (232, 150, 112), (252, 248, 236), (228, 87, 46), None
 OUTLINE = .8                                        # fine navy outline (units), as on the cloud
-BBOX = {'turtle': (-19, -15, 30, 2), 'koi': (-26, -40, 34, 5)}   # local bounding boxes (x0, y0, x1, y1)
+BBOX = {'turtle': (-19, -15, 30, 2), 'koi': (-26, -40, 34, 5), 'boat': (-16, -34, 16, 2)}   # local bounding boxes (x0, y0, x1, y1)
 
 def clamp(v, a=0., b=1.): return a if v < a else b if v > b else v
 def mix(a, b, t): return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)
@@ -119,4 +120,46 @@ def koi(x, y):
     if 0 <= u <= 9.5 and abs(n) < 1.3 + u * .8 and not (u > 4.6 and abs(n) < (u - 4.6) * 1.05):
         d = max(abs(n) - 1.3 - u * .8, u - 9.5, -(abs(n) - (u - 4.6) * 1.05) if u > 4.6 else -9) * .8
         return etch(d, .3, math.atan2(n, u + 3) * 14, FIN_PAPER, KOI_INK, 1.5)
+    return None
+
+def poly(x, y, pts):
+    """Signed distance to a closed polygon [(x, y), ...] (negative inside)."""
+    d, sg, n = 9e9, 1, len(pts)
+    for i in range(n):
+        (ax, ay), (bx, by) = pts[i], pts[i - 1]
+        ex, ey, wx, wy = bx - ax, by - ay, x - ax, y - ay
+        h = clamp((wx * ex + wy * ey) / (ex * ex + ey * ey or 1e-9))
+        d = min(d, math.hypot(wx - ex * h, wy - ey * h))
+        c1, c2, c3 = y >= ay, y < by, ex * wy > ey * wx
+        if (c1 and c2 and c3) or (not c1 and not c2 and not c3): sg = -sg
+    return sg * d
+
+BOAT_MAIN = [(-.9, -29), (-.9, -5.6), (-12.6, -5.6)]                       # mainsail, aft of the mast
+BOAT_JIB = [(1, -25.5), (1, -6.2), (10.8, -6.2)]
+BOAT_FLAG = [(.4, -32.6), (5.6, -31.6), (.4, -30.6)]
+def boat(x, y):
+    """A little sailboat, bow to the right: striped mainsail, jib, pennant; a lantern on the mast after dark."""
+    if LANTERN and math.hypot(x - 1.9, y + 10.4) < 1.5: return LANTERN if math.hypot(x - 1.9, y + 10.4) < 1.0 else NAVY
+    if LANTERN and abs(x - 1.9) < .2 and -12.4 < y < -11.4: return NAVY
+    d = poly(x, y, BOAT_FLAG)
+    if d < 0: return mix(STRIPE, NAVY, .85) if d > -.5 else STRIPE
+    d = cap(x, y, 0, -4.6, 0, -32.6, .55)                                   # mast
+    if d < 0: return NAVY
+    if cap(x, y, 0, -5.4, -12.4, -5.4, .45) < 0: return NAVY               # boom
+    d = poly(x, y, BOAT_MAIN)
+    if d < 0:
+        stripe = int((x + 13) / 2.6) % 2 == 1
+        t = .08 + .3 * clamp((-x - 2) / 10)
+        return etch(d, t, y * .4 - x, mix(SAIL_PAPER, STRIPE, .78) if stripe else SAIL_PAPER, NAVY, 1.4)
+    d = poly(x, y, BOAT_JIB)
+    if d < 0: return etch(d, .06 + .22 * clamp((x - 2) / 9), y * .4 + x, SAIL_PAPER, NAVY, 1.4)
+    if y > .6: return None                                                  # the rest is under water
+    sheer = -4.4 - 1.6 * clamp((x - 5) / 9) ** 2 - .6 * clamp((-x - 8) / 6) ** 2  # the deck line rises toward the bow
+    if -13.4 <= x <= 14.6 and sheer <= y:
+        bot = 1.2 if -9 < x < 8 else 1.2 - ((x - 8) / 6.6) ** 2 * 5.6 if x >= 8 else 1.2 - ((-9 - x) / 4.4) ** 2 * 5.6
+        if y <= bot:
+            d = max(sheer - y, y - bot, -13.4 - x, x - 14.6)
+            if abs(y - sheer - 1.5) < .35: return mix(SAIL_PAPER, NAVY, .3)    # a pale rubbing strake
+            if math.hypot(x - 4, y + 2.1) < .9: return NAVY if math.hypot(x - 4, y + 2.1) > .45 else (LANTERN or SAIL_PAPER)   # porthole
+            return etch(d, .2 + .4 * clamp((y - sheer) / 6), x * .3 + y, HULL_PAPER, HULL_INK, 1.3)
     return None

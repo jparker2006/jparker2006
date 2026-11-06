@@ -6,7 +6,7 @@
     python3 generator/world.py --all --out previews/world        # all six moments
 
 Layers, bottom to top: tint plate (vector gradients), sky and water engraving (ink with alpha), mountains (years),
-days, cast (cloud, ducks, turtle, koi), fleet (months), text. Motion is CSS inside the SVG.
+days, cast (cloud, ducks, turtle, koi, sailboat), fleet (months), text. Motion is CSS inside the SVG.
 """
 import argparse, base64, datetime, json, math, os, sys
 
@@ -20,7 +20,7 @@ MICROPRINT = False                                   # tiny month captions under
 # ------------------------------------------------------------------ layouts: one world, two compositions
 # 'desktop' is the wide print on github.com. 'phone' is a taller cut of the same world for small screens and the GitHub
 # app: shown about 324 px wide, so labels are larger and split over two lines. use_layout() sets the globals below
-# (VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI) and the pieces' bands.
+# (VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI, BOAT) and the pieces' bands.
 LAYOUTS = {
     'desktop': dict(
         VW=1200, VH=500, HZ=300, SLOT=(64, 1136), DISPLAY=830, S=1.4, RX=16,   # canvas, shown width (px), px/unit, corner
@@ -32,7 +32,7 @@ LAYOUTS = {
         MOON=((180, 1120, 20), (60, 190, 10), 100, (880, 92), 50),      # x range, y range, preferred y, default, padding
         CLOUD=.82, CLOUD_AT=((150, 1060, 12), (110, 250, 6), (330, 152), (420, 150)),
         DUCKS=[(150, 424, 1.3), (199, 431, 1.0), (238, 428, 1.0), (276, 433, 1.0)], POND=(232, 428, 96, 11, 34), DUCK_S=(1.3, 1.0, 1.0, 1.0),
-        NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2),
+        NIGHT_DUCKS=(120, 400, 310, 446), TURTLE=(452, 391, 1.3), KOI=(760, 418, 1.2), BOAT=(620, 376, 1.5),
         DY=(-132, 133, 12), DX=(-150, 151, 10), ORDER=(6, 0), REFLECT=170, NL=80, BEST_MARGIN=80, ZS=16),
     'phone': dict(
         VW=720, VH=900, HZ=540, SLOT=(30, 690), DISPLAY=324, S=2.0, RX=0,      # square: a JPEG has no transparent corners
@@ -44,17 +44,17 @@ LAYOUTS = {
         MOON=((108, 670, 14), (110, 340, 8), 180, (530, 166), 40),
         CLOUD=.76, CLOUD_AT=((96, 624, 10), (210, 450, 6), (240, 300), (250, 300)),
         DUCKS=[(110, 704, 1.7), (168, 712, 1.3), (212, 709, 1.3), (256, 714, 1.3)], POND=(196, 704, 86, 10, 34), DUCK_S=(1.7, 1.3, 1.3, 1.3),
-        NIGHT_DUCKS=(75, 672, 290, 728), TURTLE=(470, 650, 1.7), KOI=(578, 724, 1.5),
+        NIGHT_DUCKS=(75, 672, 290, 728), TURTLE=(470, 650, 1.7), KOI=(578, 724, 1.5), BOAT=(330, 668, 1.5),
         DY=(-210, 211, 14), DX=(-120, 121, 6), ORDER=(8, 30), REFLECT=300, NL=130, BEST_MARGIN=70, ZS=25),
 }
 L_ = None
 def use_layout(name):
     """Switch every global the composer reads (and the pieces' bands) to a layout."""
-    global L_, VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI, S
+    global L_, VW, VH, HZ, SLOT_X0, SLOT_X1, LABEL_H, CLOUD_SCALE, DUCKS, POND, TURTLE, KOI, BOAT, S
     L_ = dict(LAYOUTS[name], name=name)
     S = kit.S = fleet.S = L_['S']                                     # raster density, shared by every piece
     VW, VH, HZ = L_['VW'], L_['VH'], L_['HZ']; SLOT_X0, SLOT_X1 = L_['SLOT']; LABEL_H = L_['LABEL_H']
-    CLOUD_SCALE, DUCKS, POND, TURTLE, KOI = L_['CLOUD'], L_['DUCKS'], L_['POND'], L_['TURTLE'], L_['KOI']
+    CLOUD_SCALE, DUCKS, POND, TURTLE, KOI, BOAT = L_['CLOUD'], L_['DUCKS'], L_['POND'], L_['TURTLE'], L_['KOI'], L_['BOAT']
     mountains.BAND = dict(L_['MOUNTAINS']); mountains._CACHE.clear()
     daysmod.BAND = dict(L_['DAYS']); daysmod._cache_days = None
 def kk(v): return v if L_['K'] == 1 else v * L_['K']          # aircraft scale (exact for desktop)
@@ -111,7 +111,7 @@ def sun_spec(moment, summits):
 
 # ------------------------------------------------------------------ the cast (always there, never data)
 # DUCKS (a mother and three ducklings, the static night row), POND (their loop: centre x, y, half-width, half-depth,
-# seconds per lap), TURTLE and KOI (x, y, scale) come from the layout.
+# seconds per lap), TURTLE, KOI and BOAT (x, y, scale) come from the layout.
 DUCK_GAP = 2.6                       # seconds between ducks along the loop (the mother leads)
 
 def cloud_sdf(u, v):
@@ -170,11 +170,13 @@ def set_friend_colours(light):
         f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = (30, 70, 46), (84, 132, 96), (34, 76, 52), (104, 148, 112)
         f.KOI_INK, f.KOI_PAPER, f.FIN_PAPER = (170, 110, 60), (190, 160, 130), (150, 160, 182)
         f.EYE_PAPER, f.BLUSH = (190, 196, 210), (170, 110, 100)
+        f.HULL_INK, f.HULL_PAPER, f.SAIL_PAPER, f.STRIPE, f.LANTERN = (90, 44, 36), (150, 96, 82), (150, 160, 182), (170, 84, 60), light['gold']
     else:
         f.NAVY, f.PAPER, f.WATER_INK = light['ink'], light['paper'], light['ink']
         f.SHELL_INK, f.SHELL_PAPER, f.SKIN_INK, f.SKIN_PAPER = (34, 104, 58), (150, 206, 118), (40, 118, 66), (188, 228, 150)   # a green turtle
         f.KOI_INK, f.KOI_PAPER, f.FIN_PAPER = (212, 116, 46), (252, 228, 194), light['paper']
         f.EYE_PAPER, f.BLUSH = (255, 255, 255), (244, 150, 150)
+        f.HULL_INK, f.HULL_PAPER, f.SAIL_PAPER, f.STRIPE, f.LANTERN = (126, 54, 34), (232, 150, 112), (252, 248, 236), (228, 87, 46), None
 
 def friend(name, x, y, anchor):
     fx, fy, s = anchor
@@ -370,7 +372,7 @@ def make_sky_water(moment, light, sun, years):
                 elif night: t = clamp(t + (.5 - tone) * .3)
                 else: t += tone * .5 * (1 - f * .6)
         if ((L * 2246822519 + int((x + L * 37) / (16 + (L * 7) % 23)) * 3266489917) >> 9) % 9 == 0: t = 0
-        for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
+        for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3), (BOAT, 17, 2.4)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
         return col, line(n + wob, clamp(t) * .9, 1 / S * L_['NL'] * .72 * max(f, .02) ** -.28 / (VH - HZ))
@@ -403,10 +405,11 @@ MOTION_CSS = """
 @keyframes leap{0%,60%,100%{transform:translate(0,56px)}68%{transform:translate(-4px,0)}73%{transform:translate(-7px,-1px)}82%{transform:translate(-12px,56px)}}
 @keyframes ripple{0%,81%{opacity:0;transform:scale(.35)}85%{opacity:.9}100%{opacity:0;transform:scale(1.6)}}
 @keyframes twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes rock{0%,100%{transform:rotate(-2.4deg)}50%{transform:rotate(2.4deg)}}
 @keyframes paddle{0%,100%{transform:translate(0,0)}30%{transform:translate(5px,-.6px)}60%{transform:translate(9px,.4px)}}
 .cloud{animation:drift 26s ease-in-out infinite}.bob{animation:bob 11s ease-in-out infinite}.hover{animation:hover 2.6s ease-in-out infinite}
 .spin-x{animation:spinx .32s linear infinite}.spin-y{animation:spiny .28s linear infinite}.spin{animation:spin .6s linear infinite}
-.sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}
+.sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}.rock{animation:rock 6s ease-in-out infinite}
 .ring{transform-box:fill-box;transform-origin:center;animation:ripple 9s ease-out infinite;opacity:0}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}}
 """
@@ -488,6 +491,9 @@ def build(moment, days_, last):
     tx, ty, ts = TURTLE; bx0, by0, bx1, by1 = friends.BBOX['turtle']
     img, b = kit.raster(lambda x, y: friend('turtle', x, y, TURTLE), tx + bx0 * ts - 1, ty + by0 * ts - 1, tx + bx1 * ts + 1, ty + by1 * ts + 1)
     out_cast.append(f'<g class="paddle">{img}</g>')
+    bx_, by_, bs_ = BOAT; bb = friends.BBOX['boat']
+    img, b = kit.raster(lambda x, y: friend('boat', x, y, BOAT), bx_ + bb[0] * bs_ - 1, by_ + bb[1] * bs_ - 1, bx_ + bb[2] * bs_ + 1, by_ + bb[3] * bs_ + 1); sizes['boat'] = len(b)
+    out_cast.append(f'<g class="rock" style="transform-origin:{bx_:.1f}px {by_:.1f}px">{img}</g>')
     kx, ky, ks = KOI
     img, b = kit.raster(lambda x, y: friend('koi', x, y, KOI), kx - 36 * ks, ky - 42 * ks, kx + 28 * ks, ky + 6 * ks); sizes['koi'] = len(b)
     ring_ink = hexc(light['ink'] if not night else light['hair'])

@@ -24,7 +24,8 @@ They fly **time across, at natural height**: x follows the month order, y follow
 drones skim the water, helicopters and prop planes fly low, jets and airships cruise high). Big ones pass over small ones.
 
 **Always there (the cast, not data):** the round smiling cloud (perfect geometric cloud shape, a cute face), rubber ducks
-(a mother and ducklings), a turtle and a koi. Hot air balloons are no longer decoration, because a balloon now means a month.
+(a mother and ducklings), a turtle, a koi, and a little sailboat that rocks in the middle of the lake (a lantern on its
+mast after dark). Hot air balloons are no longer decoration, because a balloon now means a month.
 
 ## 2. Time of day
 
@@ -60,7 +61,7 @@ y   0 ┌───────────────────────�
       │      fleet: x = month order, y = natural height of the craft │
       │      (airship ~70, airliner ~95, ... drone ~245, paper ~270) │
  300  ├──── far shore: mountains (years), base y = 300 ─────────────┤
-      │   water: reflections, ducks, turtle, koi                     │
+      │   water: reflections, ducks, turtle, koi, sailboat           │
  430  │   near shore / shallows: the days (strip y 430..500)         │
  500  └──────────────────────────────────────────────────────────────┘
 ```
