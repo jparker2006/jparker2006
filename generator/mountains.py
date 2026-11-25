@@ -249,17 +249,20 @@ def _shade_mass(M, m, x, y, alt, t, light):
         nx, ny = -s, -1.; k = math.hypot(nx, ny); face = max(0., (nx * sun[0] + ny * sun[1]) / k)
         wr = 5 * low * (.45 + .55 * face)
         if edge < wr: return (1. if edge < .6 + .9 * face * low else .8 - .55 * edge / wr, edge * 1.4 + x * .05, 1.5, 'rim')
+    if light['night'] and edge < 1.45 and abs(ct - t) < .01:           # a thin moonlit rim, so the skyline is a shape
+        return (0.0 if edge < .5 else .35, edge * 2, 1.3, 'moonrim')
     if t - alt < (.7 if m.depth < .4 else .5):                         # the silhouette line of each mass
         return ((.9 if edge < .9 else .75) - .45 * m.depth, 0, 2.4, 'outline')
     if alt < .8: return (.04, y, 2.4, 'ink')                          # pale beach at the waterline
     haze = m.depth
     n = _normal(m, x, alt)
+    kind = 'ink'
     if m.kind == 'peak' and alt > m.treeline(x) - 2:
-        tone, phase, sp = _rock(m, x, alt, n, light)
+        tone, phase, sp, kind = _rock(m, x, alt, n, light)
     else:
         cr = m.crown_at(x, alt)
         if cr is None:
-            if m.kind == 'peak': tone, phase, sp = _rock(m, x, alt, n, light)
+            if m.kind == 'peak': tone, phase, sp, kind = _rock(m, x, alt, n, light)
             else: tone, phase, sp = .8, y - x * .4, 2.0                   # the shade between trunks
         else:
             cx, ac, rr, gap = cr
@@ -275,13 +278,14 @@ def _shade_mass(M, m, x, y, alt, t, light):
             if m.kind == 'peak': tone = .1 + .62 * tone                    # the far forest, in the haze
     tone = tone * (1 - .32 * haze)
     if low: tone = tone * (1 - .45 * low) + .45 * low                    # a low sun: the land turns against the light
-    return (kit.clamp(tone), phase, sp, 'ink')
+    return (kit.clamp(tone), phase, sp, kind)
 
 def _shadow(nx, ny, nz, light):
     """Shade 0..1 of a surface with normal n (screen x right, y down, z to the viewer). Relief is modelled with the
     real sun, but its sideways part is at least .75, as an engraver rakes the light to show form."""
     lx, ly = light['sun']
-    if abs(lx) < .75: lx = .75 if lx >= 0 else -.75
+    # By day the burin rakes light sideways so form reads in the line. At night the moon is overhead.
+    if abs(lx) < .75 and not light['night']: lx = .75 if lx >= 0 else -.75
     ly *= .6; lz = .3; k = math.sqrt(lx * lx + ly * ly + lz * lz)
     return kit.clamp(.55 - .7 * (nx * lx + ny * ly + nz * lz) / k)
 
@@ -309,15 +313,27 @@ def _rock(m, x, alt, n, light):
     phase = a * N * 2.1 + .15 * math.sin(alt * .5 + a * 7)
     tone *= .82 + .36 * kit.rnd(int(phase / 2.1 + 99), int(alt / 3.2))
     snow = SNOWLINE - 26 * ((1 - g) / 2) ** 2 + 5 * math.sin(d * .17 + s) + 4 * math.sin(d * .53 + 2 * s)
+    kind = 'ink'
     if alt > snow:                                                        # snow: bare paper, fine lines in shade only
         tone = .3 * kit.clamp(sh - .3)
+        if light['night']: kind = 'snow'                                  # moonlit field, not a net of pale lines
     elif alt > snow - 2.2: tone = max(tone, .85)                          # the rock edge under the snow
-    return tone, phase, 2.1
+    return tone, phase, 2.1, kind
 
 def _colour(r, light):
     tone, phase, sp, kind = r
     if kind == 'rim': return kit.mix(light['gold'], light['paper'], .12) if tone >= 1 else kit.warm(tone, phase, light, sp)
+    if kind == 'moonrim': return (244, 248, 255) if tone < .2 else (176, 196, 228)
     if kind == 'outline': return kit.mix(light['paper'], kit.outline(light), tone)
+    if kind == 'snow':
+        # a pale cap; gullies keep a little cool shade and a fine hatch, the lit face stays nearly bare
+        pale, deep = (236, 242, 252), (148, 170, 206)
+        hatch = kit.line(phase / sp, kit.clamp(tone) * .5, 1 / kit.S / sp)
+        return kit.mix(pale, deep, kit.q(kit.clamp(tone) * .72 + hatch * .28))
+    if light['night'] and kind == 'ink':
+        # lift the shadow off the sky so a hill reads as a mass, and keep the moonlight as a pale line
+        t = (1 - kit.clamp(tone)) * .58
+        return kit.mix((34, 54, 102), (230, 238, 252), kit.q(kit.line(phase / sp, t, 1 / kit.S / sp)))
     return kit.engrave(tone, phase, light, sp)
 
 def _reef(M, x, y, light):

@@ -72,7 +72,7 @@ TINT = {   # sky top, sky at the horizon, water far, water near, sun glow
     'midday':  ((172, 208, 242), (222, 237, 249), (219, 235, 247), (194, 220, 243), (250, 240, 214)),
     'golden':  ((160, 190, 230), (252, 214, 170), (248, 224, 192), (204, 204, 222), (252, 214, 150)),
     'dusk':    ((48, 58, 116), (232, 176, 182), (196, 166, 192), (84, 92, 148), (238, 166, 136)),
-    'night':   ((9, 19, 44), (26, 44, 86), (22, 38, 76), (9, 19, 43), (70, 92, 140)),
+    'night':   ((5, 8, 24), (18, 32, 68), (14, 28, 62), (4, 10, 28), (232, 226, 206)),
 }
 TEXT_INK = dict(dawn='#18488a', morning='#18488a', midday='#18488a', golden='#18488a', dusk='#f4ecf2', night='#e6edf8')
 
@@ -127,9 +127,10 @@ def cloud_at(u, v, light):
     d = cloud_sdf(u, v)
     if d > 0: return None
     night = light['night']
-    paper = mix((112, 132, 176), (150, 168, 206), .3) if night else (252, 251, 248)
-    ink = (60, 80, 124) if night else light['ink']
-    if d > -(.8 + .8 * clamp((v + 60) / 60)): return (210, 220, 240) if night else light['ink']
+    paper = (186, 204, 232) if night else (252, 251, 248)
+    if night: paper = mix(paper, (244, 248, 255), .62 * clamp((-v - 28) / 46))   # the moon lights the top of the cloud
+    ink = (28, 42, 78) if night else light['ink']
+    if d > -(.8 + .8 * clamp((v + 60) / 60)): return (238, 244, 255) if night else light['ink']
     ex, ey = u - 6, v + 30
     for sx in (-24, 24):
         if night:
@@ -145,8 +146,11 @@ def cloud_at(u, v, light):
     return mix(paper, ink, q(line(-d / 2.5, t, 1 / S / 2.5)))
 
 def duck_at(x, y, light, ducks=None):
-    gold = light['gold']; body = mix(gold, (252, 226, 120), .55) if not light['night'] else mix(gold, (120, 110, 80), .35)
-    dark, beak = mix(gold, (140, 90, 20), .55), (226, 132, 58) if not light['night'] else (170, 104, 52)
+    gold = light['gold']
+    if light['night']:
+        body, dark, beak = mix(gold, (255, 236, 186), .42), mix(gold, (120, 74, 32), .48), (236, 156, 78)
+    else:
+        body, dark, beak = mix(gold, (252, 226, 120), .55), mix(gold, (140, 90, 20), .55), (226, 132, 58)
     for dx, dy, s in (ducks or DUCKS):
         bx, by = (x - dx) / s, (y - dy) / s
         if -36 < bx < -9 and -1 < by < 5 and not light['night'] and abs(abs(by - 2) - (-bx - 9) * .16) < .55:
@@ -337,16 +341,11 @@ def make_sky_water(moment, light, sun, years):
                 rim = line(ds / 9, .1, 1 / S / 9) if ds > sr - 3 else 0
                 return mix((253, 250, 242), gold, q(max(c1, c2, rim) * .9)), 1
             if kind == 'moon' and ds < sr:
-                age, lit, wax = clock.moon(WHEN)
-                k = math.cos(2 * math.pi * age / 29.530588853)              # terminator: +1 new .. -1 full
-                u, v = (x - sx) / sr, (y - sy) / sr
-                edge = math.sqrt(max(0., 1 - v * v)); term = k * edge
-                bright = (u > term) if wax else (u < -term)
-                base = (236, 232, 214) if bright else (40, 56, 96)
-                c = line(ds / 3, .14 if bright else .2, 1 / S / 3)
-                return mix(base, (180, 170, 140) if bright else (70, 90, 136), q(c * .8)), 1
+                return _moon_face(x, y, sx, sy, sr, ds)
+            if night:
+                return _night_sky(x, y, ds, sr)
             deep = clamp((ds - sr) / 900) ** .9
-            t = (.03 + .02 * clamp(1 - y / HZ)) if night else (.03 + .08 * deep)
+            t = .03 + .08 * deep
             w1 = (y + 2.6 * math.sin((x + .4 * y) / 11)) / 4.4; w2 = (y + 2.6 * math.sin((-x + .4 * y) / 11 + 1.7)) / 4.4
             c = 1 - (1 - line(w1, t, 1 / S / 4.4)) * (1 - line(w2, t, 1 / S / 4.4)); col = hair
             if kind in ('sun', 'moon') and ds < sr + 46:                      # halo rings
@@ -358,7 +357,8 @@ def make_sky_water(moment, light, sun, years):
                 if ray > c: c, col = ray, mix(hair, gold, .6)
             if abs(y - (HZ - .6)) < .5: c, col = max(c, .5), ink                 # the far shore line
             return col, c
-        # water: perspective lines, the land's broken reflection, stillness (no sun or moon path: Jake, 2026-11-06)
+        # water: perspective lines and the land's broken reflection. At night a glitter path under the moon
+        # (below the year labels; the bright column itself is a vector glow under this plate).
         f = (y - HZ) / (VH - HZ)
         t = (.06 + .05 * f) if night else (.06 + .17 * f ** 1.2)
         col = ink if not night else hair
@@ -376,8 +376,94 @@ def make_sky_water(moment, light, sun, years):
         for (fx, fy, s), a, b in ((TURTLE, 27, 4.6), (KOI, 14, 3)):
             if abs(kit.ell((x - fx) / s, (y - fy) / s, 0, 1.2, a, b)) < .5: t = max(t, .45)
         wob = .1 * math.sin(x / 9.3 + y * .5) + .07 * math.sin(x / 23.1 - y * .2)
+        if night and kind == 'moon':
+            col, t = _moon_glitter(x, y, sx, col, t)
         return col, line(n + wob, clamp(t) * .9, 1 / S * L_['NL'] * .72 * max(f, .02) ** -.28 / (VH - HZ))
     return alpha_layer(fn, 0, 0, VW, VH)
+
+# Soft seas and a few crater rims, in unit-disc space. Decoration only; the terminator is still the real phase.
+_MOON_MARIA = ((.14, .05, .30), (-.28, -.12, .20), (.02, .34, .15), (-.08, -.36, .12), (.30, .22, .10))
+_MOON_CRATERS = ((.40, -.30, .08), (-.46, .16, .062), (.18, -.42, .05), (-.12, .46, .055), (.48, .08, .042), (-.34, -.30, .05))
+
+def _moon_face(x, y, sx, sy, sr, ds):
+    """A luminous disc: limb darkening, maria, crater rims. One shade ramp so the plate stays a small palette."""
+    age, _lit, wax = clock.moon(WHEN)
+    k = math.cos(2 * math.pi * age / 29.530588853)                       # terminator: +1 new .. -1 full
+    u, v = (x - sx) / sr, (y - sy) / sr
+    edge = math.sqrt(max(0., 1 - v * v)); term = k * edge
+    bright = (u > term) if wax else (u < -term)
+    limb = clamp((ds / sr - .58) / .42)
+    if not bright:
+        return mix((20, 30, 58), (52, 70, 112), q((1 - limb) * .85)), 1
+    shade = .42 * limb * limb
+    for cu, cv, cr in _MOON_MARIA:
+        cd = math.hypot(u - cu, (v - cv) * 1.08) / cr
+        if cd < 1: shade += (1 - cd * cd) * .24
+    for cu, cv, cr in _MOON_CRATERS:
+        cd = math.hypot(u - cu, v - cv) / cr
+        if cd < 1: shade += .22 if abs(cd - .68) < .16 else (.04 if cd < .68 else 0.)
+    col = mix((250, 246, 232), (164, 154, 132), q(clamp(shade)))
+    if math.exp(-((u + .26) ** 2 + (v + .34) ** 2) / .05) > .55 and shade < .16: col = (255, 253, 246)
+    rim = clamp((ds - (sr - 1.6)) / 1.6)                              # a feathered limb, not a hard ring
+    if rim > .2: col = mix(col, (255, 252, 246), round(rim * 2) / 2)
+    return col, 1
+
+def _night_sky(x, y, ds, sr):
+    """Clear air. The gradient, the moon's glow and the stars carry the sky. One silver line on the far shore."""
+    if abs(y - (HZ - .5)) < .4: return (238, 244, 252), .9
+    return (0, 0, 0), 0
+
+def _spark(x, y, r, op, tw=''):
+    return (f'<path d="M{x:.1f} {y - 2.5 * r:.1f}L{x + .38 * r:.1f} {y - .38 * r:.1f}L{x + 2.5 * r:.1f} {y:.1f}L{x + .38 * r:.1f} {y + .38 * r:.1f}'
+            f'L{x:.1f} {y + 2.5 * r:.1f}L{x - .38 * r:.1f} {y + .38 * r:.1f}L{x - 2.5 * r:.1f} {y:.1f}L{x - .38 * r:.1f} {y - .38 * r:.1f}Z" '
+            f'fill="#eef3ff" fill-opacity="{op:.2f}"{tw}/>')
+
+def star_field(avoid, crest, sx, sy, sr):
+    """A layered night sky: dust, small sparks, and a few bright stars with a soft glow. Sized to read at the
+    README width. Nothing sits on the land, the moon, the title, or a craft."""
+    parts, taken = [], set()
+    nb = nm = nd = 0
+    for k2 in range(2200):
+        x = (k2 * 7919 + 13) % (VW - 20) + 10
+        y = (k2 * 104729 + 7) % 997 / 997 * (HZ - 26) + 12
+        if y > crest(x) - 8 or math.hypot(x - sx, y - sy) < sr + 26: continue
+        if any(overlaps((x - 6, y - 6, x + 6, y + 6), o, 4) for o in avoid): continue
+        key = (int(x) // 22, int(y) // 18)
+        if key in taken: continue
+        taken.add(key)
+        delay = f' class="star" style="animation-delay:-{(k2 * .41) % 5.6:.2f}s"'
+        b = k2 % 9
+        if b == 0 and nb < 11:
+            r = 1.7 + (k2 % 4) * .12
+            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 2.6:.1f}" fill="#d5e2ff" fill-opacity=".28"{delay}/>')
+            parts.append(_spark(x, y, r, .95, delay))
+            nb += 1
+        elif b in (1, 2) and nm < 26:
+            r = 1.05 + (k2 % 4) * .1
+            parts.append(_spark(x, y, r, .55 + (k2 % 4) * .1, delay if k2 % 2 == 0 else ''))
+            nm += 1
+        elif nd < 48:
+            r = .75 + (k2 % 3) * .18
+            op = .45 + (k2 % 5) * .1
+            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="#eef3ff" fill-opacity="{op:.2f}"{delay if k2 % 4 == 0 else ""}/>')
+            nd += 1
+        if nb >= 11 and nm >= 26 and nd >= 48: break
+    return ''.join(parts)
+
+def _moon_glitter(x, y, sx, col, t):
+    """Moonlight caught on the ripples that are already there: short warm dashes, dark water between them.
+    Starts below the year labels. A gap in the plate (t == 0) stays a gap."""
+    if t <= 0: return col, t
+    y0 = HZ + 19 * L_['LABEL'] / 16.5 + L_['LABEL'] * .85
+    if y < y0: return col, t
+    f2 = (y - y0) / max(1., VH - y0)
+    half = 16 + 42 * (f2 ** .72)
+    dx = (x - sx) / half
+    if abs(dx) >= 1: return col, t
+    if (int(y / 3.4) * 9 + int(dx * 5)) % 4 == 0: return col, t
+    spark = round(((1 - abs(dx)) ** 1.45) * 3) / 3
+    if spark <= 0: return col, t
+    return mix(col, (250, 238, 204), spark), min(.5, t + .24 * spark)
 
 # ------------------------------------------------------------------ build
 def sail_css():
@@ -412,12 +498,15 @@ MOTION_CSS = """
 @keyframes sway{0%,100%{transform:skewX(0deg)}50%{transform:skewX(-1.6deg)}}
 @keyframes leap{0%,60%,100%{transform:translate(0,56px)}68%{transform:translate(-4px,0)}73%{transform:translate(-7px,-1px)}82%{transform:translate(-12px,56px)}}
 @keyframes ripple{0%,81%{opacity:0;transform:scale(.35)}85%{opacity:.9}100%{opacity:0;transform:scale(1.6)}}
-@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes twinkle{0%,100%{opacity:.22}50%{opacity:1}}
 @keyframes rock{0%,100%{transform:rotate(-2.4deg)}50%{transform:rotate(2.4deg)}}
 @keyframes paddle{0%,100%{transform:translate(0,0)}30%{transform:translate(5px,-.6px)}60%{transform:translate(9px,.4px)}}
+@keyframes moonpulse{0%,100%{opacity:.78}50%{opacity:1}}
+@keyframes lamp{0%,100%{opacity:.5}42%{opacity:.92}70%{opacity:.42}}
 .cloud{animation:drift 26s ease-in-out infinite}.bob{animation:bob 11s ease-in-out infinite}.hover{animation:hover 2.6s ease-in-out infinite}
 .spin-x{animation:spinx .32s linear infinite}.spin-y{animation:spiny .28s linear infinite}.spin{animation:spin .6s linear infinite}
-.sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4s ease-in-out infinite}.rock{animation:rock 6s ease-in-out infinite}
+.sway{animation:sway 7s ease-in-out infinite}.paddle{animation:paddle 14s ease-in-out infinite}.koi{animation:leap 9s ease-in-out infinite}.star{animation:twinkle 4.8s ease-in-out infinite}.rock{animation:rock 6s ease-in-out infinite}
+.moon-glow{animation:moonpulse 9s ease-in-out infinite}.lamp{animation:lamp 3.4s ease-in-out infinite}
 .ring{transform-box:fill-box;transform-origin:center;animation:ripple 9s ease-out infinite;opacity:0}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}.koi{transform:none}.ring{opacity:0}.lap{transform:none}.sail{transform:none}}
 """
@@ -450,14 +539,34 @@ def build(moment, days_, last):
     P = moment[:2] + '-'
     # 1. tint plate
     kind, sx, sy, sr = sun
+    if night:
+        glow = (f'<radialGradient id="{P}glow" cx="{sx}" cy="{sy}" r="{sr * 6.4:.0f}" gradientUnits="userSpaceOnUse">'
+                f'<stop offset="0" stop-color="#f7f2e4" stop-opacity=".95"/>'
+                f'<stop offset=".09" stop-color="#d9e3fa" stop-opacity=".48"/>'
+                f'<stop offset=".3" stop-color="#6e88be" stop-opacity=".13"/>'
+                f'<stop offset="1" stop-color="#6e88be" stop-opacity="0"/></radialGradient>'
+                f'<linearGradient id="{P}air" x1="0" y1="{HZ - 58}" x2="0" y2="{HZ}" gradientUnits="userSpaceOnUse">'
+                f'<stop offset="0" stop-color="#c3d0ea" stop-opacity="0"/><stop offset="1" stop-color="#dce6f6" stop-opacity=".16"/></linearGradient>'
+                f'<radialGradient id="{P}lamp" cx="50%" cy="50%" r="50%">'
+                f'<stop offset="0" stop-color="#ffe8b6" stop-opacity=".95"/>'
+                f'<stop offset=".28" stop-color="#ffb15e" stop-opacity=".55"/>'
+                f'<stop offset="1" stop-color="#ffb15e" stop-opacity="0"/></radialGradient>'
+                f'<filter id="{P}soft" x="-35%" y="-55%" width="170%" height="210%"><feGaussianBlur stdDeviation="1.35"/></filter>')
+    else:
+        glow = (f'<radialGradient id="{P}glow" cx="{sx}" cy="{sy}" r="{sr * 4.2:.0f}" gradientUnits="userSpaceOnUse">'
+                f'<stop offset="0" stop-color="{hexc(tint[4])}" stop-opacity=".95"/>'
+                f'<stop offset=".45" stop-color="{hexc(tint[4])}" stop-opacity=".35"/>'
+                f'<stop offset="1" stop-color="{hexc(tint[4])}" stop-opacity="0"/></radialGradient>')
     defs = (f'<clipPath id="{P}card"><rect width="{VW}" height="{VH}" rx="{L_["RX"]}"/></clipPath>'
             f'<filter id="{P}halo" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="1.8"/></filter>'
             f'<linearGradient id="{P}sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{hexc(tint[0])}"/><stop offset="1" stop-color="{hexc(tint[1])}"/></linearGradient>'
             f'<linearGradient id="{P}water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{hexc(tint[2])}"/><stop offset="1" stop-color="{hexc(tint[3])}"/></linearGradient>'
-            f'<radialGradient id="{P}glow" cx="{sx}" cy="{sy}" r="{sr * 4.2:.0f}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="{hexc(tint[4])}" stop-opacity=".95"/>'
-            f'<stop offset=".45" stop-color="{hexc(tint[4])}" stop-opacity=".35"/><stop offset="1" stop-color="{hexc(tint[4])}" stop-opacity="0"/></radialGradient>')
+            + glow)
+    glow_cls = ' class="moon-glow"' if night else ''
     out.append(f'<rect width="{VW}" height="{HZ}" fill="url(#{P}sky)"/><rect y="{HZ}" width="{VW}" height="{VH - HZ}" fill="url(#{P}water)"/>'
-               f'<rect width="{VW}" height="{VH}" fill="url(#{P}glow)"/>')
+               f'<rect width="{VW}" height="{VH}" fill="url(#{P}glow)"{glow_cls}/>')
+    if night:
+        out.append(f'<rect x="0" y="{HZ - 58}" width="{VW}" height="58" fill="url(#{P}air)"/>')
     # 2. sky and water engraving
     img, b = make_sky_water(moment, light, sun, years); out.append(img); sizes['sky+water'] = len(b)
     # 3. mountains
@@ -489,7 +598,11 @@ def build(moment, days_, last):
     out_cast = []
     bx_, by_, bs_ = BOAT; bb = friends.BBOX['boat']
     img, b = kit.raster(lambda x, y: friend('boat', x, y, BOAT), bx_ + bb[0] * bs_ - 1, by_ + bb[1] * bs_ - 1, bx_ + bb[2] * bs_ + 1, by_ + bb[3] * bs_ + 1); sizes['boat'] = len(b)
-    out_cast.append(f'<g class="sail"><g class="rock" style="transform-origin:{bx_:.1f}px {by_:.1f}px">{img}</g></g>')
+    lamp = ''
+    if night:                                                          # the lantern blooms; it rocks with the boat
+        lx, ly = bx_ + 1.9 * bs_, by_ - 10.4 * bs_
+        lamp = f'<circle class="lamp" cx="{lx:.1f}" cy="{ly:.1f}" r="{15 * bs_:.1f}" fill="url(#{P}lamp)"/>'
+    out_cast.append(f'<g class="sail"><g class="rock" style="transform-origin:{bx_:.1f}px {by_:.1f}px">{lamp}{img}</g></g>')
     if night:                                                          # asleep in a row, gently bobbing
         img, b = kit.raster(lambda x, y: duck_at(x, y, light), *L_['NIGHT_DUCKS']); out_cast.append(f'<g class="drowse">{img}</g>'); sizes['ducks'] = len(b)
     else:                                                              # a family swimming its loop, ducklings trailing mum
@@ -542,26 +655,31 @@ def build(moment, days_, last):
     boxes = [p[2] for p in placed.values() if p] + [(sx - halo, sy - halo, sx + halo, sy + halo)] + keepouts[1:]
     cx, cy = place_cloud(boxes, title_box, crest); s = CLOUD_SCALE
     img, b = kit.raster(lambda x, y: cloud_at((x - cx) / s, (y - cy) / s, light), cx - 122 * s, cy - 118 * s, cx + 124 * s, cy + 3 * s); sizes['cloud'] = len(b)
-    cloud_svg = f'<g class="cloud">{img}</g>'
+    veil = zs_svg = ''
     if night:
-        zs = L_['ZS']; zk = zs / 16
-        cloud_svg += ''.join(f'<text x="{cx + 70 * s + 12 * zk * j:.1f}" y="{cy - 92 * s - 14 * zk * j:.1f}" font-family="Geist Mono" font-size="{zs + 3 * zk * j:g}" fill="{text_ink}" data-bg="{hexc(tint[0])}">z</text>' for j in range(3))
+        veil = f'<ellipse cx="{cx:.1f}" cy="{cy - 44 * s:.1f}" rx="{72 * s:.1f}" ry="{24 * s:.1f}" fill="#f4f7ff" opacity=".2"/>'
+        zs, zk = L_['ZS'], L_['ZS'] / 16
+        zs_svg = ''.join(f'<text x="{cx + 70 * s + 12 * zk * j:.1f}" y="{cy - 92 * s - 14 * zk * j:.1f}" font-family="Geist Mono" font-size="{zs + 3 * zk * j:g}" fill="{text_ink}" data-bg="{hexc(tint[0])}">z</text>' for j in range(3))
+    cloud_svg = f'<g class="cloud">{veil}{img}{zs_svg}</g>'          # the z's drift with the sleeper
     # 8. night sky details
-    stars = ''
     if night:
-        for k2 in range(220):
-            x = (k2 * 7919 + 13) % (VW - 13) + 6.5; y = (k2 * 104729 + 7) % 997 / 997 * (HZ - 24) + 8
-            if any(overlaps((x - 4, y - 4, x + 4, y + 4), o, 6) for o in boxes + [title_box]) or math.hypot(x - sx, y - sy) < sr + 60: continue
-            r = .7 + (k2 * 31) % 9 / 9; tw = f' class="star" style="animation-delay:-{(k2 * .53) % 4:.2f}s"' if k2 % 3 == 0 else ''
-            stars += (f'<path d="M{x:.1f} {y - 2.4 * r:.1f}L{x + .55 * r:.1f} {y - .55 * r:.1f}L{x + 2.4 * r:.1f} {y:.1f}L{x + .55 * r:.1f} {y + .55 * r:.1f}'
-                      f'L{x:.1f} {y + 2.4 * r:.1f}L{x - .55 * r:.1f} {y + .55 * r:.1f}L{x - 2.4 * r:.1f} {y:.1f}L{x - .55 * r:.1f} {y - .55 * r:.1f}Z" fill="#e8eefb" fill-opacity="{.4 + .6 * ((k2 * 17) % 10) / 10:.2f}"{tw}/>')
-            if stars.count('<path') >= 34: break
+        avoid = [p[2] for p in placed.values() if p] + keepouts + [title_box, (cx - 140 * s, cy - 150 * s, cx + 160 * s, cy + 12 * s)]
+        stars = star_field(avoid, crest, sx, sy, sr)
+    else:
+        stars = ''
     # 9. text
     mono = 'font-family="Geist Mono" letter-spacing="1.6"'; data_mono = 'font-family="Geist Mono" letter-spacing=".6"'
     bg_name, bg_line, bg_cap = mix(tint[0], tint[1], .25), mix(tint[0], tint[1], .34), mix(tint[2], tint[3], .1)
     (nx_, ny_, nf), (mx_, my_, mf) = L_['NAME'], L_['MOMENT']
-    words = (f'<text x="{nx_}" y="{ny_}" font-family="Geist" font-size="{nf}" letter-spacing="-.4" fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
-             f'<text x="{mx_}" y="{my_}" {mono} font-size="{mf:g}" fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{clock.LABEL[moment]} · CALIFORNIA</text>')
+    name_at = f'x="{nx_}" y="{ny_}" font-family="Geist" font-size="{nf}" letter-spacing="-.4"'
+    moment_at = f'x="{mx_}" y="{my_}" {mono} font-size="{mf:g}"'
+    moment_line = f'{clock.LABEL[moment]} · CALIFORNIA'
+    lift = ''
+    if night:                                                          # a soft lift so the name reads over the stars
+        lift = (f'<text {name_at} fill="#c9d6ee" stroke="#c9d6ee" stroke-width="2.6" filter="url(#{P}soft)" opacity=".42" data-halo="1" aria-hidden="true">Jake Parker</text>'
+                f'<text {moment_at} fill="#b7c8e4" stroke="#b7c8e4" stroke-width="1.8" filter="url(#{P}soft)" opacity=".32" data-halo="1" aria-hidden="true">{moment_line}</text>')
+    words = (lift + f'<text {name_at} fill="{ink_on(bg_name, text_ink)}" data-bg="{hexc(bg_name)}">Jake Parker</text>'
+             f'<text {moment_at} fill="{ink_on(bg_line, text_ink)}" data-bg="{hexc(bg_line)}">{moment_line}</text>')
     for (yr, tot), (x, y) in zip(years, summits):
         words += data_label(x, HZ + 19 * L_['LABEL'] / 16.5, two(yr, f'{tot:,}'), bg_cap, text_ink, P)
     # the tallest reed carries its number: it sets the scale for every day
