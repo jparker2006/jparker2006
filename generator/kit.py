@@ -21,7 +21,7 @@ LIGHTS = {
     'midday':  dict(paper=(248, 246, 239), ink=(24, 72, 138), hair=(70, 110, 172), gold=(196, 136, 46), sun=(.22, -.97), night=False),
     'golden':  dict(paper=(250, 241, 224), ink=(24, 72, 138), hair=(70, 110, 172), gold=(210, 140, 44), sun=(.95, -.3), night=False),
     'dusk':    dict(paper=(240, 232, 236), ink=(24, 62, 124), hair=(84, 104, 160), gold=(214, 132, 76), sun=(.98, .18), night=False),
-    'night':   dict(paper=(14, 27, 58), ink=(206, 218, 240), hair=(120, 146, 196), gold=(234, 206, 140), sun=(.5, -.86), night=True),
+    'night':   dict(paper=(11, 20, 46), ink=(224, 232, 248), hair=(156, 178, 220), gold=(255, 206, 128), sun=(.12, -.99), night=True),
 }
 
 # ------------------------------------------------------------------ accent pigments (shared by the flowers and the aircraft)
@@ -31,7 +31,7 @@ PIGMENTS = dict(vermilion=(228, 87, 46), marigold=(244, 178, 38), leaf=(76, 156,
 def pigment(name, light, amount=1.):
     """A pigment as it reads in this moment's light: full by day, quieter and cooler at night."""
     c = PIGMENTS[name]
-    if light['night']: c = mix(c, light['paper'], .45)
+    if light['night']: c = mix(c, light['paper'], .16)          # still nocturnal, but the colour stays readable
     return mix(light['paper'], c, amount)
 
 # ------------------------------------------------------------------ maths
